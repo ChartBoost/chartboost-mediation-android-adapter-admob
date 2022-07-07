@@ -1,12 +1,13 @@
-package com.chartboost.heliumsdk.admobadapter
+package com.chartboost.helium.admobadapter
 
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
+import android.text.TextUtils
+import android.util.DisplayMetrics
 import android.util.Size
 import android.view.View.GONE
 import android.view.View.VISIBLE
-import com.chartboost.helium.admobadapter.BuildConfig
 import com.chartboost.heliumsdk.domain.*
 import com.chartboost.heliumsdk.domain.AdFormat
 import com.chartboost.heliumsdk.utils.LogController
@@ -35,7 +36,7 @@ class AdMobAdapter : PartnerAdapter {
     private var gdprApplies: Boolean? = null
 
     /**
-     * Indicate whether the user has consented to allowing personalized ads.
+     * Indicate whether the user has consented to allowing personalized ads when GDPR applies.
      */
     private var allowPersonalizedAds = false
 
@@ -44,15 +45,33 @@ class AdMobAdapter : PartnerAdapter {
      */
     private var ccpaPrivacyString: String? = null
 
+    /**
+     * Get the Google Mobile Ads SDK version.
+     *
+     * Note that the version string will be in the format of afma-sdk-a-v221908999.214106000.1.
+     */
     override val partnerSdkVersion: String
         get() = MobileAds.getVersionString()
 
+    /**
+     * Get the AdMob adapter version.
+     *
+     * Note that the version string will be in the format of `Helium.Partner.Partner.Partner.Adapter`,
+     * in which `Helium` is the version of the Helium SDK, `Partner` is the major.minor.patch version
+     * of the partner SDK, and `Adapter` is the version of the adapter.
+     */
     override val adapterVersion: String
         get() = BuildConfig.VERSION_NAME
 
+    /**
+     * Get the partner name for internal uses.
+     */
     override val partnerId: String
-        get() = "AdMob"
+        get() = "admob"
 
+    /**
+     * Get the partner name for external uses.
+     */
     override val partnerDisplayName: String
         get() = "AdMob"
 
@@ -213,18 +232,15 @@ class AdMobAdapter : PartnerAdapter {
             if (it.initializationState == AdapterStatus.State.READY) {
                 Result.success(LogController.i("AdMob successfully initialized."))
             } else {
-                Result.failure(
-                    Error(
-                        "AdMob failed to initialize. Initialization State: " +
-                                "$it.initializationState. Description: " +
-                                "$it.description"
-                    )
+                LogController.e(
+                    "AdMob failed to initialize. Initialization state: " +
+                            "$it.initializationState. Description: $it.description\""
                 )
+                Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
             }
         } ?: run {
-            Result.failure(
-                Error("AdMob failed to initialize. Initialization status is null.")
-            )
+            LogController.e("AdMob failed to initialize. Initialization status is null.")
+            Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }
     }
 
@@ -249,7 +265,7 @@ class AdMobAdapter : PartnerAdapter {
                     request = request,
                 )
 
-                adview.adSize = heliumToAdMobBannerSize(request.size)
+                adview.adSize = getAdMobAdSize(request.size)
                 adview.adUnitId = request.partnerPlacement
                 adview.loadAd(buildRequest(request.identifier))
                 adview.adListener = object : AdListener() {
@@ -266,7 +282,10 @@ class AdMobAdapter : PartnerAdapter {
                     }
 
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        continuation.resume(Result.failure(Exception("Failed to load banner ad: ${adError.message}")))
+                        LogController.e("AdMob banner failed to load: ${adError.message}")
+                        continuation.resume(
+                            Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
+                        )
                     }
 
                     override fun onAdOpened() {
@@ -287,13 +306,18 @@ class AdMobAdapter : PartnerAdapter {
         }
     }
 
-    private fun heliumToAdMobBannerSize(size: Size?): AdSize {
-        return when (size) {
-            Size(320, 50) -> AdSize.BANNER
-            Size(300, 250) -> AdSize.MEDIUM_RECTANGLE
-            Size(728, 90) -> AdSize.LEADERBOARD
-            else -> AdSize.BANNER
-        }
+    /**
+     * Find the most appropriate AdMob ad size for the given screen area based on height.
+     *
+     * @param size The [Size] to parse for conversion.
+     *
+     * @return The AdMob ad size that best matches the given [Size].
+     */
+    private fun getAdMobAdSize(size: Size?) = when (size?.height) {
+        in 50 until 90 -> AdSize.BANNER
+        in 90 until 250 -> AdSize.LEADERBOARD
+        in 250 until DisplayMetrics().heightPixels -> AdSize.MEDIUM_RECTANGLE
+        else -> AdSize.BANNER
     }
 
     /**
@@ -326,12 +350,9 @@ class AdMobAdapter : PartnerAdapter {
                         }
 
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                            LogController.e("Failed to load interstitial ad: ${loadAdError.message}")
                             continuation.resume(
-                                Result.failure(
-                                    Exception(
-                                        "Failed to load interstitial ad: ${loadAdError.message}"
-                                    )
-                                )
+                                Result.failure(HeliumAdException(getHeliumErrorCode(loadAdError.code)))
                             )
                         }
                     }
@@ -370,8 +391,11 @@ class AdMobAdapter : PartnerAdapter {
                         }
 
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                            LogController.e("Failed to load rewarded ad: ${loadAdError.message}")
                             continuation.resume(
-                                Result.failure(Exception("Failed to load rewarded ad: ${loadAdError.message}"))
+                                Result.failure(
+                                    HeliumAdException(getHeliumErrorCode(loadAdError.code))
+                                )
                             )
                         }
                     }
@@ -394,7 +418,8 @@ class AdMobAdapter : PartnerAdapter {
             }
             Result.success(partnerAd)
         } ?: run {
-            Result.failure(Exception("Failed to show AdMob banner ad. Banner ad is null."))
+            LogController.e("Failed to show AdMob banner ad. Banner ad is null.")
+            Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
     }
 
@@ -411,7 +436,8 @@ class AdMobAdapter : PartnerAdapter {
         partnerAd: PartnerAd
     ): Result<PartnerAd> {
         if (context !is Activity) {
-            return Result.failure(Exception("Failed to show AdMob interstitial ad. Context is not an Activity."))
+            LogController.e("Failed to show AdMob interstitial ad. Context is not an Activity.")
+            return Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
 
         return suspendCoroutine { continuation ->
@@ -430,13 +456,12 @@ class AdMobAdapter : PartnerAdapter {
                             }
 
                             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                                LogController.e(
+                                    "Failed to show AdMob interstitial ad. " +
+                                            "Error: ${adError.message}"
+                                )
                                 continuation.resume(
-                                    Result.failure(
-                                        Exception(
-                                            "Failed to show AdMob " +
-                                                    "interstitial ad. Error: ${adError.message}"
-                                        )
-                                    )
+                                    Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
                                 )
                             }
 
@@ -454,7 +479,8 @@ class AdMobAdapter : PartnerAdapter {
                     interstitial.show(context)
                 }
             } ?: run {
-                continuation.resume(Result.failure(Exception("Failed to show AdMob interstitial ad. Ad is null.")))
+                LogController.e("Failed to show AdMob interstitial ad. Ad is null.")
+                continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL)))
             }
         }
     }
@@ -472,7 +498,8 @@ class AdMobAdapter : PartnerAdapter {
         partnerAd: PartnerAd
     ): Result<PartnerAd> {
         if (context !is Activity) {
-            return Result.failure(Exception("Failed to show rewarded ad. Context is not an Activity."))
+            LogController.e("Failed to show rewarded ad. Context is not an Activity.")
+            return Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
 
         return suspendCoroutine { continuation ->
@@ -490,12 +517,9 @@ class AdMobAdapter : PartnerAdapter {
                         }
 
                         override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                            LogController.e("Failed to show rewarded ad. Error: ${adError.message}")
                             continuation.resume(
-                                Result.failure(
-                                    Exception(
-                                        "Failed to show rewarded ad. Error: ${adError.message}"
-                                    )
-                                )
+                                Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
                             )
                         }
 
@@ -518,9 +542,8 @@ class AdMobAdapter : PartnerAdapter {
                     }
                 }
             } ?: run {
-                continuation.resume(
-                    Result.failure(Exception("Failed to show AdMob rewarded ad. Ad is null."))
-                )
+                LogController.e("Failed to show AdMob rewarded ad. Ad is null.")
+                continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL)))
             }
         }
     }
@@ -539,13 +562,13 @@ class AdMobAdapter : PartnerAdapter {
                 it.destroy()
                 Result.success(partnerAd)
             } else {
-                Result.failure(
-                    Exception("Failed to destroy AdMob banner ad. Ad is not an AdView.")
-                )
+                LogController.e("Failed to destroy AdMob banner ad. Ad is not an AdView.")
+                Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
             }
-        } ?: Result.failure(
-            Exception("Failed to destroy AdMob banner ad. Ad is null.")
-        )
+        } ?: run {
+            LogController.e("Failed to destroy AdMob banner ad. Ad is null.")
+            Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
+        }
     }
 
     /**
@@ -576,7 +599,30 @@ class AdMobAdapter : PartnerAdapter {
             if (!allowPersonalizedAds) {
                 putString("npa", "1")
             }
-            putString("IABUSPrivacy_String", ccpaPrivacyString)
+
+            if (!TextUtils.isEmpty(ccpaPrivacyString)) {
+                putString("IABUSPrivacy_String", ccpaPrivacyString)
+            }
+        }
+    }
+
+    /**
+     * Convert a given AdMob error code into a [HeliumErrorCode].
+     *
+     * @param error The AdMob error code as an [Int].
+     *
+     * @return The corresponding [HeliumErrorCode].
+     */
+    private fun getHeliumErrorCode(error: Int): HeliumErrorCode {
+        return when (error) {
+            AdRequest.ERROR_CODE_APP_ID_MISSING -> HeliumErrorCode.INVALID_CONFIG
+            AdRequest.ERROR_CODE_INTERNAL_ERROR -> HeliumErrorCode.INTERNAL
+            AdRequest.ERROR_CODE_INVALID_AD_STRING -> HeliumErrorCode.INVALID_BID_PAYLOAD
+            AdRequest.ERROR_CODE_INVALID_REQUEST -> HeliumErrorCode.PARTNER_ERROR
+            AdRequest.ERROR_CODE_NETWORK_ERROR -> HeliumErrorCode.NO_CONNECTIVITY
+            AdRequest.ERROR_CODE_NO_FILL -> HeliumErrorCode.NO_FILL
+            AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> HeliumErrorCode.INVALID_CREDENTIALS
+            else -> HeliumErrorCode.INTERNAL
         }
     }
 }

@@ -7,7 +7,6 @@ import android.text.TextUtils
 import android.util.DisplayMetrics
 import android.util.Size
 import android.view.View.GONE
-import android.view.View.VISIBLE
 import com.chartboost.heliumsdk.domain.*
 import com.chartboost.heliumsdk.domain.AdFormat
 import com.chartboost.heliumsdk.utils.LogController
@@ -179,17 +178,18 @@ class AdMobAdapter : PartnerAdapter {
         listeners[request.heliumPlacement] = partnerAdListener
 
         return when (request.format) {
-            AdFormat.INTERSTITIAL -> loadInterstitial(
+            AdFormat.INTERSTITIAL -> loadInterstitialAd(
                 context,
                 request
             )
-            AdFormat.REWARDED -> loadRewarded(
+            AdFormat.REWARDED -> loadRewardedAd(
                 context,
                 request
             )
-            AdFormat.BANNER -> loadBanner(
+            AdFormat.BANNER -> loadBannerAd(
                 context,
-                request
+                request,
+                partnerAdListener
             )
         }
     }
@@ -203,10 +203,14 @@ class AdMobAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
+        val listener = listeners[partnerAd.request.heliumPlacement]
+        listeners.remove(partnerAd.request.heliumPlacement)
+
         return when (partnerAd.request.format) {
-            AdFormat.BANNER -> showBannerAd(partnerAd)
-            AdFormat.INTERSTITIAL -> showInterstitialAd(context, partnerAd)
-            AdFormat.REWARDED -> showRewardedAd(context, partnerAd)
+            // Banner ads do not have a separate "show" mechanism.
+            AdFormat.BANNER -> Result.success(partnerAd)
+            AdFormat.INTERSTITIAL -> showInterstitialAd(context, partnerAd, listener)
+            AdFormat.REWARDED -> showRewardedAd(context, partnerAd, listener)
         }
     }
 
@@ -256,31 +260,29 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param heliumListener A [PartnerAdListener] to notify Helium of ad events.
      */
-    private suspend fun loadBanner(
+    private suspend fun loadBannerAd(
         context: Context,
-        request: AdLoadRequest
+        request: AdLoadRequest,
+        heliumListener: PartnerAdListener
     ): Result<PartnerAd> {
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
-                val listener = listeners[request.heliumPlacement]
-                val adview = AdView(context)
+                val bannerAd = AdView(context)
                 val partnerAd = PartnerAd(
-                    ad = adview,
+                    ad = bannerAd,
                     inlineView = null,
                     details = emptyMap(),
                     request = request,
                 )
 
-                adview.adSize = getAdMobAdSize(request.size)
-                adview.adUnitId = request.partnerPlacement
-                adview.loadAd(buildRequest(request.identifier))
-                adview.adListener = object : AdListener() {
+                bannerAd.adSize = getAdMobAdSize(request.size, context)
+                bannerAd.adUnitId = request.partnerPlacement
+                bannerAd.loadAd(buildRequest(request.identifier))
+                bannerAd.adListener = object : AdListener() {
                     override fun onAdImpression() {
-                        listener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
-                            "$TAG Unable to fire onPartnerAdImpression for AdMob adapter."
-                        )
-
+                        heliumListener.onPartnerAdImpression(partnerAd)
                         continuation.resume(Result.success(partnerAd))
                     }
 
@@ -300,9 +302,7 @@ class AdMobAdapter : PartnerAdapter {
                     }
 
                     override fun onAdClicked() {
-                        listener?.onPartnerAdClicked(partnerAd) ?: LogController.d(
-                            "$TAG Unable to fire onPartnerAdClicked for AdMob adapter."
-                        )
+                        heliumListener.onPartnerAdClicked(partnerAd)
                     }
 
                     override fun onAdClosed() {
@@ -320,10 +320,13 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return The AdMob ad size that best matches the given [Size].
      */
-    private fun getAdMobAdSize(size: Size?) = when (size?.height) {
+    private fun getAdMobAdSize(size: Size?, context: Context) = when (size?.height) {
         in 50 until 90 -> AdSize.BANNER
         in 90 until 250 -> AdSize.LEADERBOARD
-        in 250 until DisplayMetrics().heightPixels -> AdSize.MEDIUM_RECTANGLE
+        in 250 until convertPixelsToDp(
+            DisplayMetrics().heightPixels,
+            context
+        ).toInt() -> AdSize.MEDIUM_RECTANGLE
         else -> AdSize.BANNER
     }
 
@@ -333,7 +336,7 @@ class AdMobAdapter : PartnerAdapter {
      * @param context The current [Context].
      * @param request An [AdLoadRequest] instance containing data to load the ad with.
      */
-    private suspend fun loadInterstitial(
+    private suspend fun loadInterstitialAd(
         context: Context,
         request: AdLoadRequest
     ): Result<PartnerAd> {
@@ -376,7 +379,7 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
-    private suspend fun loadRewarded(
+    private suspend fun loadRewardedAd(
         context: Context,
         request: AdLoadRequest
     ): Result<PartnerAd> {
@@ -412,35 +415,18 @@ class AdMobAdapter : PartnerAdapter {
     }
 
     /**
-     * Attempted to show an AdMob banner ad on the main thread.
-     *
-     * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
-     *
-     * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
-     */
-    private fun showBannerAd(partnerAd: PartnerAd): Result<PartnerAd> {
-        return partnerAd.ad?.let {
-            CoroutineScope(Main).launch {
-                (it as AdView).visibility = VISIBLE
-            }
-            Result.success(partnerAd)
-        } ?: run {
-            LogController.e("$TAG Failed to show AdMob banner ad. Banner ad is null.")
-            Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
-        }
-    }
-
-    /**
      * Attempt to show an AdMob interstitial ad on the main thread.
      *
      * @param context The current [Context].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
+     * @param heliumListener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     private suspend fun showInterstitialAd(
         context: Context,
-        partnerAd: PartnerAd
+        partnerAd: PartnerAd,
+        heliumListener: PartnerAdListener?
     ): Result<PartnerAd> {
         if (context !is Activity) {
             LogController.e("$TAG Failed to show AdMob interstitial ad. Context is not an Activity.")
@@ -451,12 +437,10 @@ class AdMobAdapter : PartnerAdapter {
             partnerAd.ad?.let { ad ->
                 CoroutineScope(Main).launch {
                     val interstitial = ad as InterstitialAd
-                    val listener = listeners[partnerAd.request.heliumPlacement]
-
                     interstitial.fullScreenContentCallback =
                         object : FullScreenContentCallback() {
                             override fun onAdImpression() {
-                                listener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
+                                heliumListener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
                                     "$TAG Unable to fire onPartnerAdImpression for AdMob adapter."
                                 )
                                 continuation.resume(Result.success(partnerAd))
@@ -477,7 +461,7 @@ class AdMobAdapter : PartnerAdapter {
                             }
 
                             override fun onAdDismissedFullScreenContent() {
-                                listener?.onPartnerAdDismissed(partnerAd, null)
+                                heliumListener?.onPartnerAdDismissed(partnerAd, null)
                                     ?: LogController.d(
                                         "$TAG Unable to fire onPartnerAdDismissed for AdMob adapter."
                                     )
@@ -497,12 +481,14 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
+     * @param heliumListener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     private suspend fun showRewardedAd(
         context: Context,
-        partnerAd: PartnerAd
+        partnerAd: PartnerAd,
+        heliumListener: PartnerAdListener?
     ): Result<PartnerAd> {
         if (context !is Activity) {
             LogController.e("$TAG Failed to show AdMob rewarded ad. Context is not an Activity.")
@@ -513,11 +499,9 @@ class AdMobAdapter : PartnerAdapter {
             partnerAd.ad?.let { ad ->
                 CoroutineScope(Main).launch {
                     val rewardedAd = ad as RewardedAd
-                    val listener = listeners[partnerAd.request.heliumPlacement]
-
                     rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
                         override fun onAdImpression() {
-                            listener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
+                            heliumListener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
                                 "$TAG Unable to fire onPartnerAdImpression for AdMob adapter."
                             )
                             continuation.resume(Result.success(partnerAd))
@@ -535,14 +519,18 @@ class AdMobAdapter : PartnerAdapter {
                         }
 
                         override fun onAdDismissedFullScreenContent() {
-                            listener?.onPartnerAdDismissed(partnerAd, null) ?: LogController.d(
-                                "$TAG Unable to fire onPartnerAdDismissed for AdMob adapter."
-                            )
+                            heliumListener?.onPartnerAdDismissed(partnerAd, null)
+                                ?: LogController.d(
+                                    "$TAG Unable to fire onPartnerAdDismissed for AdMob adapter."
+                                )
                         }
                     }
 
                     rewardedAd.show(context) { reward ->
-                        listener?.onPartnerAdRewarded(partnerAd, Reward(reward.amount, reward.type))
+                        heliumListener?.onPartnerAdRewarded(
+                            partnerAd,
+                            Reward(reward.amount, reward.type)
+                        )
                             ?: LogController.d(
                                 "$TAG Unable to fire onPartnerAdRewarded for AdMob adapter."
                             )
@@ -631,5 +619,17 @@ class AdMobAdapter : PartnerAdapter {
             AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> HeliumErrorCode.INVALID_CREDENTIALS
             else -> HeliumErrorCode.INTERNAL
         }
+    }
+
+    /**
+     * Util method to convert a pixels value to a density-independent pixels value.
+     *
+     * @param pixels The pixels value to convert.
+     * @param context The context to use for density conversion.
+     *
+     * @return The converted density-independent pixels value as a Float.
+     */
+    private fun convertPixelsToDp(pixels: Int, context: Context): Float {
+        return pixels / (context.resources.displayMetrics.densityDpi.toFloat() / DisplayMetrics.DENSITY_DEFAULT)
     }
 }

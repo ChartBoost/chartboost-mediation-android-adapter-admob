@@ -58,7 +58,7 @@ class AdMobAdapter : PartnerAdapter {
      * Note that the version string will be in the format of afma-sdk-a-v221908999.214106000.1.
      */
     override val partnerSdkVersion: String
-        get() = MobileAds.getVersionString()
+        get() = MobileAds.getVersion().toString()
 
     /**
      * Get the AdMob adapter version.
@@ -272,7 +272,7 @@ class AdMobAdapter : PartnerAdapter {
                     request = request,
                 )
 
-                adview.adSize = getAdMobAdSize(request.size)
+                adview.setAdSize(getAdMobAdSize(request.size))
                 adview.adUnitId = request.partnerPlacement
                 adview.loadAd(buildRequest(request.identifier))
                 adview.adListener = object : AdListener() {

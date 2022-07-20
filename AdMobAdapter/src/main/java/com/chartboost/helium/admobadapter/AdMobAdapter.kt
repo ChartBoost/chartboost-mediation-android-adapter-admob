@@ -274,7 +274,7 @@ class AdMobAdapter : PartnerAdapter {
 
                 adview.setAdSize(getAdMobAdSize(request.size))
                 adview.adUnitId = request.partnerPlacement
-                adview.loadAd(buildRequest(request.identifier))
+                adview.loadAd(buildRequest(request.identifier, request.isHybridSetup))
                 adview.adListener = object : AdListener() {
                     override fun onAdImpression() {
                         listener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
@@ -341,7 +341,7 @@ class AdMobAdapter : PartnerAdapter {
             CoroutineScope(Main).launch {
                 InterstitialAd.load(context,
                     request.partnerPlacement,
-                    buildRequest(request.identifier),
+                    buildRequest(request.identifier, request.isHybridSetup),
                     object : InterstitialAdLoadCallback() {
                         override fun onAdLoaded(interstitialAd: InterstitialAd) {
                             continuation.resume(
@@ -382,7 +382,9 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
-                RewardedAd.load(context, request.partnerPlacement, buildRequest(request.identifier),
+                RewardedAd.load(context,
+                    request.partnerPlacement,
+                    buildRequest(request.identifier, request.isHybridSetup),
                     object : RewardedAdLoadCallback() {
                         override fun onAdLoaded(rewardedAd: RewardedAd) {
                             continuation.resume(
@@ -582,14 +584,18 @@ class AdMobAdapter : PartnerAdapter {
      * Build an AdMob ad request.
      *
      * @param identifier The unique identifier associated with the current ad load call.
+     * @param isHybridSetup Whether the current waterfall contains both AdMob and Google Bidding.
      *
      * @return An AdMob [AdRequest] object.
      */
-    private fun buildRequest(identifier: String): AdRequest {
+    private fun buildRequest(identifier: String, isHybridSetup: Boolean): AdRequest {
         val extras = buildPrivacyConsents()
 
-        // Google expects this specific key to be set for debugging purposes.
-        extras.putString("placement_req_id", identifier)
+        if (isHybridSetup) {
+            // Requirement by Google for their debugging purposes
+            extras.putString("placement_req_id", identifier)
+            extras.putBoolean("is_hybrid_setup", isHybridSetup)
+        }
 
         return AdRequest.Builder()
             .addNetworkExtrasBundle(AdMobAdapter::class.java, extras)

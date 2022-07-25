@@ -3,7 +3,6 @@ package com.chartboost.helium.admobadapter
 import android.app.Activity
 import android.content.Context
 import android.os.Bundle
-import android.text.TextUtils
 import android.util.DisplayMetrics
 import android.util.Size
 import android.view.View.GONE
@@ -106,18 +105,20 @@ class AdMobAdapter : PartnerAdapter {
     /**
      * Save the current GDPR applicability state for later use.
      *
-     * @param gdprApplies The current GDPR applicability state.
+     * @param context The current [Context].
+     * @param gdprApplies True if GDPR applies, false otherwise.
      */
-    override fun setGdprApplies(gdprApplies: Boolean) {
+    override fun setGdprApplies(context: Context, gdprApplies: Boolean) {
         this.gdprApplies = gdprApplies
     }
 
     /**
      * Get whether to allow personalized ads based on the user's GDPR consent status.
      *
+     * @param context The current [Context].
      * @param gdprConsentStatus The user's current GDPR consent status.
      */
-    override fun setGdprConsentStatus(gdprConsentStatus: GdprConsentStatus) {
+    override fun setGdprConsentStatus(context: Context, gdprConsentStatus: GdprConsentStatus) {
         if (gdprApplies == true) {
             allowPersonalizedAds = gdprConsentStatus == GdprConsentStatus.GDPR_CONSENT_GRANTED
         }
@@ -126,16 +127,21 @@ class AdMobAdapter : PartnerAdapter {
     /**
      * Save the current CCPA privacy String to be used later.
      *
+     * @param context The current [Context].
+     * @param hasGivenCcpaConsent True if the user has given CCPA consent, false otherwise.
      * @param privacyString The CCPA privacy String.
      */
-    override fun setCcpaPrivacyString(privacyString: String?) {
+    override fun setCcpaConsent(context: Context, hasGivenCcpaConsent: Boolean, privacyString: String?) {
         ccpaPrivacyString = privacyString
     }
 
     /**
      * Notify AdMob of the COPPA subjectivity.
+     *
+     * @param context The current [Context].
+     * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
      */
-    override fun setUserSubjectToCoppa(isSubjectToCoppa: Boolean) {
+    override fun setUserSubjectToCoppa(context: Context, isSubjectToCoppa: Boolean) {
         MobileAds.setRequestConfiguration(
             MobileAds.getRequestConfiguration().toBuilder()
                 .setTagForChildDirectedTreatment(
@@ -267,7 +273,6 @@ class AdMobAdapter : PartnerAdapter {
                 val adview = AdView(context)
                 val partnerAd = PartnerAd(
                     ad = adview,
-                    inlineView = null,
                     details = emptyMap(),
                     request = request,
                 )
@@ -348,7 +353,6 @@ class AdMobAdapter : PartnerAdapter {
                                 Result.success(
                                     PartnerAd(
                                         ad = interstitialAd,
-                                        inlineView = null,
                                         details = emptyMap(),
                                         request = request
                                     )
@@ -389,7 +393,6 @@ class AdMobAdapter : PartnerAdapter {
                                 Result.success(
                                     PartnerAd(
                                         ad = rewardedAd,
-                                        inlineView = null,
                                         details = emptyMap(),
                                         request = request
                                     )
@@ -603,12 +606,14 @@ class AdMobAdapter : PartnerAdapter {
      */
     private fun buildPrivacyConsents(): Bundle {
         return Bundle().apply {
-            if (!allowPersonalizedAds) {
+            if (gdprApplies == true && !allowPersonalizedAds) {
                 putString("npa", "1")
             }
 
-            if (!TextUtils.isEmpty(ccpaPrivacyString)) {
-                putString("IABUSPrivacy_String", ccpaPrivacyString)
+            ccpaPrivacyString?.let {
+                if (it.isNotEmpty()) {
+                    putString("IABUSPrivacy_String", it)
+                }
             }
         }
     }

@@ -30,6 +30,11 @@ class AdMobAdapter : PartnerAdapter {
          * The tag used for log messages.
          */
         private const val TAG = "[AdMobAdapter]"
+
+        /**
+         * Key for parsing whether the waterfall is hybrid (i.e. containing both AdMob and Google Bidding).
+         */
+        private const val IS_HYBRID_SETUP = "is_hybrid_setup"
     }
 
     /**
@@ -274,7 +279,12 @@ class AdMobAdapter : PartnerAdapter {
 
                 adview.setAdSize(getAdMobAdSize(request.size))
                 adview.adUnitId = request.partnerPlacement
-                adview.loadAd(buildRequest(request.identifier, request.isHybridSetup))
+                adview.loadAd(
+                    buildRequest(
+                        request.identifier,
+                        getIsHybridSetup(request.partnerSettings)
+                    )
+                )
                 adview.adListener = object : AdListener() {
                     override fun onAdImpression() {
                         listener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
@@ -341,7 +351,7 @@ class AdMobAdapter : PartnerAdapter {
             CoroutineScope(Main).launch {
                 InterstitialAd.load(context,
                     request.partnerPlacement,
-                    buildRequest(request.identifier, request.isHybridSetup),
+                    buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
                     object : InterstitialAdLoadCallback() {
                         override fun onAdLoaded(interstitialAd: InterstitialAd) {
                             continuation.resume(
@@ -384,7 +394,7 @@ class AdMobAdapter : PartnerAdapter {
             CoroutineScope(Main).launch {
                 RewardedAd.load(context,
                     request.partnerPlacement,
-                    buildRequest(request.identifier, request.isHybridSetup),
+                    buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
                     object : RewardedAdLoadCallback() {
                         override fun onAdLoaded(rewardedAd: RewardedAd) {
                             continuation.resume(
@@ -594,7 +604,7 @@ class AdMobAdapter : PartnerAdapter {
         if (isHybridSetup) {
             // Requirement by Google for their debugging purposes
             extras.putString("placement_req_id", identifier)
-            extras.putBoolean("is_hybrid_setup", isHybridSetup)
+            extras.putBoolean(IS_HYBRID_SETUP, isHybridSetup)
         }
 
         return AdRequest.Builder()
@@ -617,6 +627,17 @@ class AdMobAdapter : PartnerAdapter {
                 putString("IABUSPrivacy_String", ccpaPrivacyString)
             }
         }
+    }
+
+    /**
+     * Parse partner-specific settings for whether this waterfall is a hybrid setup.
+     *
+     * @param settings The [AdLoadRequest.partnerSettings] map containing partner-specific settings.
+     *
+     * @return True if this waterfall is a hybrid setup, false otherwise.
+     */
+    private fun getIsHybridSetup(settings: Map<String, String>): Boolean {
+        return settings[IS_HYBRID_SETUP]?.toBoolean() ?: false
     }
 
     /**

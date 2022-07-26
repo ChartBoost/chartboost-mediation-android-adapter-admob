@@ -1,4 +1,4 @@
-package com.chartboost.helium.admobadapter
+package com.chartboost.heliumsdk.admobadapter
 
 import android.app.Activity
 import android.content.Context
@@ -23,12 +23,12 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-class AdMobAdapter : PartnerAdapter {
+class AdMobAdapter_New : PartnerAdapter {
     companion object {
         /**
          * The tag used for log messages.
          */
-        private const val TAG = "[AdMobAdapter]"
+        private const val TAG = "[AdMobAdapter_New]"
     }
 
     /**
@@ -67,7 +67,7 @@ class AdMobAdapter : PartnerAdapter {
      * of the partner SDK, and `Adapter` is the version of the adapter.
      */
     override val adapterVersion: String
-        get() = BuildConfig.VERSION_NAME
+        get() = "BuildConfig.VERSION_NAME"
 
     /**
      * Get the partner name for internal uses.

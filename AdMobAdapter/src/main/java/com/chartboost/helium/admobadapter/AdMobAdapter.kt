@@ -67,7 +67,7 @@ class AdMobAdapter : PartnerAdapter {
      * of the partner SDK, and `Adapter` is the version of the adapter.
      */
     override val adapterVersion: String
-        get() = "BuildConfig.VERSION_NAME"
+        get() = BuildConfig.HELIUM_ADMOB_ADAPTER_VERSION
 
     /**
      * Get the partner name for internal uses.

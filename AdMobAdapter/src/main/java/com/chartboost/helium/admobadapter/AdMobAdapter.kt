@@ -28,7 +28,7 @@ class AdMobAdapter : PartnerAdapter {
         /**
          * The tag used for log messages.
          */
-        private const val TAG = "[AdMobAdapter]"
+        private val TAG = "[${this::class.java.simpleName}]"
 
         /**
          * Key for parsing whether the waterfall is hybrid (i.e. containing both AdMob and Google Bidding).
@@ -72,7 +72,7 @@ class AdMobAdapter : PartnerAdapter {
      * of the partner SDK, and `Adapter` is the version of the adapter.
      */
     override val adapterVersion: String
-        get() = BuildConfig.VERSION_NAME
+        get() = BuildConfig.HELIUM_ADMOB_ADAPTER_VERSION
 
     /**
      * Get the partner name for internal uses.

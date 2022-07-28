@@ -2,4 +2,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.chartboost.helium.admobadapter">
 
+    <uses-permission android:name="android.permission.INTERNET" />
 </manifest>

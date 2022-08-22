@@ -352,6 +352,9 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request An [AdLoadRequest] instance containing data to load the ad with.
+     * @param listener A [PartnerAdListener] to notify Helium of ad events.
+     *
+     * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     private suspend fun loadInterstitial(
         context: Context,
@@ -396,6 +399,7 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request The [AdLoadRequest] containing relevant data for the current ad load call.
+     * @param listener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
@@ -463,6 +467,7 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
+     * @param listener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
@@ -525,6 +530,7 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
+     * @param listener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */

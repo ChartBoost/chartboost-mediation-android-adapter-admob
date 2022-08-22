@@ -186,17 +186,16 @@ class AdMobAdapter : PartnerAdapter {
         request: AdLoadRequest,
         partnerAdListener: PartnerAdListener
     ): Result<PartnerAd> {
-        // Save the listener for later use.
-        listeners[request.heliumPlacement] = partnerAdListener
-
         return when (request.format) {
             AdFormat.INTERSTITIAL -> loadInterstitial(
                 context,
-                request
+                request,
+                partnerAdListener
             )
             AdFormat.REWARDED -> loadRewarded(
                 context,
-                request
+                request,
+                partnerAdListener
             )
             AdFormat.BANNER -> loadBanner(
                 context,
@@ -214,10 +213,12 @@ class AdMobAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
+        val listener = listeners.remove(partnerAd.request.heliumPlacement)
+
         return when (partnerAd.request.format) {
             AdFormat.BANNER -> showBannerAd(partnerAd)
-            AdFormat.INTERSTITIAL -> showInterstitialAd(context, partnerAd)
-            AdFormat.REWARDED -> showRewardedAd(context, partnerAd)
+            AdFormat.INTERSTITIAL -> showInterstitialAd(context, partnerAd, listener)
+            AdFormat.REWARDED -> showRewardedAd(context, partnerAd, listener)
         }
     }
 
@@ -335,11 +336,15 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return The AdMob ad size that best matches the given [Size].
      */
-    private fun getAdMobAdSize(size: Size?) = when (size?.height) {
-        in 50 until 90 -> AdSize.BANNER
-        in 90 until 250 -> AdSize.LEADERBOARD
-        in 250 until DisplayMetrics().heightPixels -> AdSize.MEDIUM_RECTANGLE
-        else -> AdSize.BANNER
+    private fun getAdMobAdSize(size: Size?): AdSize {
+        return size?.height?.let {
+            when {
+                it in 50 until 90 -> AdSize.BANNER
+                it in 90 until 250 -> AdSize.LEADERBOARD
+                it >= 250 -> AdSize.MEDIUM_RECTANGLE
+                else -> AdSize.BANNER
+            }
+        } ?: AdSize.BANNER
     }
 
     /**
@@ -347,11 +352,18 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request An [AdLoadRequest] instance containing data to load the ad with.
+     * @param listener A [PartnerAdListener] to notify Helium of ad events.
+     *
+     * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     private suspend fun loadInterstitial(
         context: Context,
-        request: AdLoadRequest
+        request: AdLoadRequest,
+        listener: PartnerAdListener
     ): Result<PartnerAd> {
+        // Save the listener for later use.
+        listeners[request.heliumPlacement] = listener
+
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
                 InterstitialAd.load(context,
@@ -387,13 +399,18 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param request The [AdLoadRequest] containing relevant data for the current ad load call.
+     * @param listener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     private suspend fun loadRewarded(
         context: Context,
-        request: AdLoadRequest
+        request: AdLoadRequest,
+        listener: PartnerAdListener
     ): Result<PartnerAd> {
+        // Save the listener for later use.
+        listeners[request.heliumPlacement] = listener
+
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
                 RewardedAd.load(context,
@@ -450,12 +467,14 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
+     * @param listener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     private suspend fun showInterstitialAd(
         context: Context,
-        partnerAd: PartnerAd
+        partnerAd: PartnerAd,
+        listener: PartnerAdListener?
     ): Result<PartnerAd> {
         if (context !is Activity) {
             LogController.e("$TAG Failed to show AdMob interstitial ad. Context is not an Activity.")
@@ -466,7 +485,6 @@ class AdMobAdapter : PartnerAdapter {
             partnerAd.ad?.let { ad ->
                 CoroutineScope(Main).launch {
                     val interstitial = ad as InterstitialAd
-                    val listener = listeners[partnerAd.request.heliumPlacement]
 
                     interstitial.fullScreenContentCallback =
                         object : FullScreenContentCallback() {
@@ -512,12 +530,14 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @param context The current [Context].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
+     * @param listener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     private suspend fun showRewardedAd(
         context: Context,
-        partnerAd: PartnerAd
+        partnerAd: PartnerAd,
+        listener: PartnerAdListener?
     ): Result<PartnerAd> {
         if (context !is Activity) {
             LogController.e("$TAG Failed to show AdMob rewarded ad. Context is not an Activity.")
@@ -528,7 +548,6 @@ class AdMobAdapter : PartnerAdapter {
             partnerAd.ad?.let { ad ->
                 CoroutineScope(Main).launch {
                     val rewardedAd = ad as RewardedAd
-                    val listener = listeners[partnerAd.request.heliumPlacement]
 
                     rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
                         override fun onAdImpression() {

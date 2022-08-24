@@ -26,6 +26,25 @@ import kotlin.coroutines.suspendCoroutine
 class AdMobAdapter : PartnerAdapter {
     companion object {
         /**
+         * List containing device IDs to be set for enabling AdMob test ads. It can be populated at
+         * any time and will take effect for the next ad request. Remember to empty this list or
+         * stop setting it before releasing your app.
+         */
+        public var testDeviceIds = listOf<String>()
+            set(value) {
+                field = value
+                LogController.d(
+                    "$TAG AdMob test device ID(s) to be set: ${
+                        if (value.isEmpty()) "none"
+                        else value.joinToString()
+                    }"
+                )
+                MobileAds.setRequestConfiguration(
+                    RequestConfiguration.Builder().setTestDeviceIds(value).build()
+                )
+            }
+
+        /**
          * The tag used for log messages.
          */
         private val TAG = "[${this::class.java.simpleName}]"

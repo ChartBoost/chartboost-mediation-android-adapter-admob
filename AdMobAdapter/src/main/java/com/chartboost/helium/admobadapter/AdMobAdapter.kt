@@ -266,7 +266,7 @@ class AdMobAdapter : PartnerAdapter {
     private fun getInitResult(status: AdapterStatus?): Result<Unit> {
         return status?.let { it ->
             if (it.initializationState == AdapterStatus.State.READY) {
-                Result.success(Unit)
+                Result.success(LogController.i("AdMob successfully initialized."))
             } else {
                 LogController.e(
                     "AdMob failed to initialize. Initialization state: " +

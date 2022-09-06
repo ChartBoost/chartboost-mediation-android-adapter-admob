@@ -8,7 +8,10 @@ import android.view.View.GONE
 import android.view.View.VISIBLE
 import com.chartboost.heliumsdk.domain.*
 import com.chartboost.heliumsdk.domain.AdFormat
-import com.chartboost.heliumsdk.utils.LogController
+import com.chartboost.heliumsdk.utils.PartnerLogController
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterFailureEvents.*
+import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterSuccessEvents.*
 import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.android.gms.ads.*
 import com.google.android.gms.ads.initialization.AdapterStatus
@@ -32,7 +35,8 @@ class AdMobAdapter : PartnerAdapter {
         public var testDeviceIds = listOf<String>()
             set(value) {
                 field = value
-                LogController.d(
+                PartnerLogController.log(
+                    CUSTOM,
                     "AdMob test device ID(s) to be set: ${
                         if (value.isEmpty()) "none"
                         else value.joinToString()
@@ -109,6 +113,8 @@ class AdMobAdapter : PartnerAdapter {
         context: Context,
         partnerConfiguration: PartnerConfiguration
     ): Result<Unit> {
+        PartnerLogController.log(SETUP_STARTED)
+
         // Since Helium is the mediator, no need to initialize AdMob's partner SDKs.
         // https://developers.google.com/android/reference/com/google/android/gms/ads/MobileAds?hl=en#disableMediationAdapterInitialization(android.content.Context)
         MobileAds.disableMediationAdapterInitialization(context)
@@ -187,22 +193,28 @@ class AdMobAdapter : PartnerAdapter {
     override suspend fun fetchBidderInformation(
         context: Context,
         request: PreBidRequest
-    ): Map<String, String> = emptyMap()
+    ): Map<String, String> {
+        PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
+        PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
+        return emptyMap()
+    }
 
     /**
      * Attempt to load an AdMob ad.
      *
      * @param context The current [Context].
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      * @param partnerAdListener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     override suspend fun load(
         context: Context,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         partnerAdListener: PartnerAdListener
     ): Result<PartnerAd> {
+        PartnerLogController.log(LOAD_STARTED)
+
         return when (request.format) {
             AdFormat.INTERSTITIAL -> loadInterstitial(
                 context,
@@ -230,6 +242,7 @@ class AdMobAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
+        PartnerLogController.log(SHOW_STARTED)
         val listener = listeners.remove(partnerAd.request.heliumPlacement)
 
         return when (partnerAd.request.format) {
@@ -247,12 +260,16 @@ class AdMobAdapter : PartnerAdapter {
      * @return Result.success(PartnerAd) if the ad was successfully discarded, Result.failure(Exception) otherwise.
      */
     override suspend fun invalidate(partnerAd: PartnerAd): Result<PartnerAd> {
+        PartnerLogController.log(INVALIDATE_STARTED)
         listeners.remove(partnerAd.request.heliumPlacement)
 
         // Only invalidate banners as there are no explicit methods to invalidate the other formats.
         return when (partnerAd.request.format) {
             AdFormat.BANNER -> destroyBannerAd(partnerAd)
-            else -> Result.success(partnerAd)
+            else -> {
+                PartnerLogController.log(INVALIDATE_SUCCEEDED)
+                Result.success(partnerAd)
+            }
         }
     }
 
@@ -266,17 +283,16 @@ class AdMobAdapter : PartnerAdapter {
     private fun getInitResult(status: AdapterStatus?): Result<Unit> {
         return status?.let { it ->
             if (it.initializationState == AdapterStatus.State.READY) {
-                Result.success(LogController.i("AdMob successfully initialized."))
+                Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
             } else {
-                LogController.e(
-                    "AdMob failed to initialize. Initialization state: " +
+                PartnerLogController.log(
+                    SETUP_FAILED, "Initialization state: " +
                             "$it.initializationState. Description: $it.description\""
                 )
                 Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
             }
         } ?: run {
-
-            LogController.e("AdMob failed to initialize. Initialization status is null.")
+            PartnerLogController.log(SETUP_FAILED, "Initialization status is null.")
             Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
         }
     }
@@ -285,11 +301,11 @@ class AdMobAdapter : PartnerAdapter {
      * Attempt to load an AdMob banner on the main thread.
      *
      * @param context The current [Context].
-     * @param request An [AdLoadRequest] instance containing relevant data for the current ad load call.
+     * @param request An [PartnerAdLoadRequest] instance containing relevant data for the current ad load call.
      */
     private suspend fun loadBanner(
         context: Context,
-        request: AdLoadRequest
+        request: PartnerAdLoadRequest
     ): Result<PartnerAd> {
 
         return suspendCoroutine { continuation ->
@@ -312,19 +328,20 @@ class AdMobAdapter : PartnerAdapter {
                 )
                 adview.adListener = object : AdListener() {
                     override fun onAdImpression() {
-                        listener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
+                        PartnerLogController.log(DID_TRACK_IMPRESSION)
+                        listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
+                            CUSTOM,
                             "Unable to fire onPartnerAdImpression for AdMob adapter."
                         )
-
-                        continuation.resume(Result.success(partnerAd))
                     }
 
                     override fun onAdLoaded() {
+                        PartnerLogController.log(LOAD_SUCCEEDED)
                         continuation.resume(Result.success(partnerAd))
                     }
 
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        LogController.e("Failed to load AdMob banner ad: ${adError.message}")
+                        PartnerLogController.log(LOAD_FAILED, adError.message)
                         continuation.resume(
                             Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
                         )
@@ -335,7 +352,9 @@ class AdMobAdapter : PartnerAdapter {
                     }
 
                     override fun onAdClicked() {
-                        listener?.onPartnerAdClicked(partnerAd) ?: LogController.d(
+                        PartnerLogController.log(DID_CLICK)
+                        listener?.onPartnerAdClicked(partnerAd) ?: PartnerLogController.log(
+                            CUSTOM,
                             "Unable to fire onPartnerAdClicked for AdMob adapter."
                         )
                     }
@@ -370,14 +389,14 @@ class AdMobAdapter : PartnerAdapter {
      * Attempt to load an AdMob interstitial on the main thread.
      *
      * @param context The current [Context].
-     * @param request An [AdLoadRequest] instance containing data to load the ad with.
+     * @param request An [PartnerAdLoadRequest] instance containing data to load the ad with.
      * @param listener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     private suspend fun loadInterstitial(
         context: Context,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         // Save the listener for later use.
@@ -390,6 +409,7 @@ class AdMobAdapter : PartnerAdapter {
                     buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
                     object : InterstitialAdLoadCallback() {
                         override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                            PartnerLogController.log(LOAD_SUCCEEDED)
                             continuation.resume(
                                 Result.success(
                                     PartnerAd(
@@ -402,7 +422,7 @@ class AdMobAdapter : PartnerAdapter {
                         }
 
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
-                            LogController.e("Failed to load AdMob interstitial ad: ${loadAdError.message}")
+                            PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             continuation.resume(
                                 Result.failure(HeliumAdException(getHeliumErrorCode(loadAdError.code)))
                             )
@@ -417,14 +437,14 @@ class AdMobAdapter : PartnerAdapter {
      * Attempt to load an AdMob rewarded ad on the main thread.
      *
      * @param context The current [Context].
-     * @param request The [AdLoadRequest] containing relevant data for the current ad load call.
+     * @param request The [PartnerAdLoadRequest] containing relevant data for the current ad load call.
      * @param listener A [PartnerAdListener] to notify Helium of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
      */
     private suspend fun loadRewarded(
         context: Context,
-        request: AdLoadRequest,
+        request: PartnerAdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         // Save the listener for later use.
@@ -437,6 +457,7 @@ class AdMobAdapter : PartnerAdapter {
                     buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
                     object : RewardedAdLoadCallback() {
                         override fun onAdLoaded(rewardedAd: RewardedAd) {
+                            PartnerLogController.log(LOAD_SUCCEEDED)
                             continuation.resume(
                                 Result.success(
                                     PartnerAd(
@@ -449,7 +470,7 @@ class AdMobAdapter : PartnerAdapter {
                         }
 
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
-                            LogController.e("Failed to load AdMob rewarded ad: ${loadAdError.message}")
+                            PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             continuation.resume(
                                 Result.failure(
                                     HeliumAdException(getHeliumErrorCode(loadAdError.code))
@@ -474,9 +495,11 @@ class AdMobAdapter : PartnerAdapter {
             CoroutineScope(Main).launch {
                 (it as AdView).visibility = VISIBLE
             }
+
+            PartnerLogController.log(SHOW_SUCCEEDED)
             Result.success(partnerAd)
         } ?: run {
-            LogController.e("Failed to show AdMob banner ad. Banner ad is null.")
+            PartnerLogController.log(SHOW_FAILED, "Banner ad is null.")
             Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
     }
@@ -496,7 +519,7 @@ class AdMobAdapter : PartnerAdapter {
         listener: PartnerAdListener?
     ): Result<PartnerAd> {
         if (context !is Activity) {
-            LogController.e("Failed to show AdMob interstitial ad. Context is not an Activity.")
+            PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
             return Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
 
@@ -508,29 +531,31 @@ class AdMobAdapter : PartnerAdapter {
                     interstitial.fullScreenContentCallback =
                         object : FullScreenContentCallback() {
                             override fun onAdImpression() {
-                                listener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
-                                    "Unable to fire onPartnerAdImpression for AdMob adapter."
-                                )
-                                continuation.resume(Result.success(partnerAd))
+                                PartnerLogController.log(DID_TRACK_IMPRESSION)
+                                listener?.onPartnerAdImpression(partnerAd)
+                                    ?: PartnerLogController.log(
+                                        CUSTOM,
+                                        "Unable to fire onPartnerAdImpression for AdMob adapter."
+                                    )
                             }
 
                             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                                LogController.e(
-                                    "Failed to show AdMob interstitial ad. " +
-                                            "Error: ${adError.message}"
-                                )
+                                PartnerLogController.log(SHOW_FAILED, adError.message)
                                 continuation.resume(
                                     Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
                                 )
                             }
 
                             override fun onAdShowedFullScreenContent() {
+                                PartnerLogController.log(SHOW_SUCCEEDED)
                                 continuation.resume(Result.success(partnerAd))
                             }
 
                             override fun onAdDismissedFullScreenContent() {
+                                PartnerLogController.log(DID_DISMISS)
                                 listener?.onPartnerAdDismissed(partnerAd, null)
-                                    ?: LogController.d(
+                                    ?: PartnerLogController.log(
+                                        CUSTOM,
                                         "Unable to fire onPartnerAdDismissed for AdMob adapter."
                                     )
                             }
@@ -538,7 +563,7 @@ class AdMobAdapter : PartnerAdapter {
                     interstitial.show(context)
                 }
             } ?: run {
-                LogController.e("Failed to show AdMob interstitial ad. Ad is null.")
+                PartnerLogController.log(SHOW_FAILED, "Ad is null.")
                 continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL)))
             }
         }
@@ -559,7 +584,7 @@ class AdMobAdapter : PartnerAdapter {
         listener: PartnerAdListener?
     ): Result<PartnerAd> {
         if (context !is Activity) {
-            LogController.e("Failed to show AdMob rewarded ad. Context is not an Activity.")
+            PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
             return Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
 
@@ -570,39 +595,46 @@ class AdMobAdapter : PartnerAdapter {
 
                     rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
                         override fun onAdImpression() {
-                            listener?.onPartnerAdImpression(partnerAd) ?: LogController.d(
+                            PartnerLogController.log(DID_TRACK_IMPRESSION)
+                            listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
+                                CUSTOM,
                                 "Unable to fire onPartnerAdImpression for AdMob adapter."
                             )
-                            continuation.resume(Result.success(partnerAd))
                         }
 
                         override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                            LogController.e("Failed to show AdMob rewarded ad. Error: ${adError.message}")
+                            PartnerLogController.log(SHOW_FAILED, adError.message)
                             continuation.resume(
                                 Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
                             )
                         }
 
                         override fun onAdShowedFullScreenContent() {
+                            PartnerLogController.log(SHOW_SUCCEEDED)
                             continuation.resume(Result.success(partnerAd))
                         }
 
                         override fun onAdDismissedFullScreenContent() {
-                            listener?.onPartnerAdDismissed(partnerAd, null) ?: LogController.d(
-                                "Unable to fire onPartnerAdDismissed for AdMob adapter."
-                            )
+                            PartnerLogController.log(DID_DISMISS)
+                            listener?.onPartnerAdDismissed(partnerAd, null)
+                                ?: PartnerLogController.log(
+                                    CUSTOM,
+                                    "Unable to fire onPartnerAdDismissed for AdMob adapter."
+                                )
                         }
                     }
 
                     rewardedAd.show(context) { reward ->
+                        PartnerLogController.log(DID_REWARD)
                         listener?.onPartnerAdRewarded(partnerAd, Reward(reward.amount, reward.type))
-                            ?: LogController.d(
+                            ?: PartnerLogController.log(
+                                CUSTOM,
                                 "Unable to fire onPartnerAdRewarded for AdMob adapter."
                             )
                     }
                 }
             } ?: run {
-                LogController.e("Failed to show AdMob rewarded ad. Ad is null.")
+                PartnerLogController.log(SHOW_FAILED, "Ad is null.")
                 continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL)))
             }
         }
@@ -620,13 +652,15 @@ class AdMobAdapter : PartnerAdapter {
             if (it is AdView) {
                 it.visibility = GONE
                 it.destroy()
+
+                PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)
             } else {
-                LogController.e("Failed to destroy AdMob banner ad. Ad is not an AdView.")
+                PartnerLogController.log(INVALIDATE_FAILED, "Ad is not an AdView.")
                 Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
             }
         } ?: run {
-            LogController.e("Failed to destroy AdMob banner ad. Ad is null.")
+            PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
             Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
         }
     }
@@ -675,7 +709,7 @@ class AdMobAdapter : PartnerAdapter {
     /**
      * Parse partner-specific settings for whether this waterfall is a hybrid setup.
      *
-     * @param settings The [AdLoadRequest.partnerSettings] map containing partner-specific settings.
+     * @param settings The [PartnerAdLoadRequest.partnerSettings] map containing partner-specific settings.
      *
      * @return True if this waterfall is a hybrid setup, false otherwise.
      */

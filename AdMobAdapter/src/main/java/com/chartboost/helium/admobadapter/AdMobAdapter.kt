@@ -286,8 +286,8 @@ class AdMobAdapter : PartnerAdapter {
                 Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
             } else {
                 PartnerLogController.log(
-                    SETUP_FAILED, "Initialization state: " +
-                            "$it.initializationState. Description: $it.description\""
+                    SETUP_FAILED,
+                    "Initialization state: $it.initializationState. Description: $it.description"
                 )
                 Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
             }

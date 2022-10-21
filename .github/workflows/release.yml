@@ -32,17 +32,7 @@ jobs:
         HELIUM_IS_RELEASE: 'true'
       run: ./gradlew ci artifactoryPublish
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Github Release
+      uses: ncipollo/release-action@v1
       with:
-        tag_name: ${{ github.ref }}
-        release_name: ${{ github.ref }}
-
-    - name: Upload AAR
-      uses: actions/upload-artifact@v2
-      with:
-        name: AARS
-        path: AdMobAdapter/build/outputs/aar/*.aar
+        artifacts: AdMobAdapter/build/outputs/aar/*.aar

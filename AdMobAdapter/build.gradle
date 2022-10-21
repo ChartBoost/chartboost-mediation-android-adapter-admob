@@ -102,7 +102,7 @@ artifactory {
         }
 
         defaults {
-            publications('AdColonyAdapter', 'aar')
+            publications('AdMobAdapter', 'aar')
             publishArtifacts = true
             publishPom = true
         }

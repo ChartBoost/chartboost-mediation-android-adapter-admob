@@ -3,7 +3,7 @@ on:
   push:
     tags:
       # When any release tag is pushed
-      - '[0-9]+.[0-9]+.[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
   helium-release:
@@ -31,3 +31,18 @@ jobs:
         JFROG_PASS: ${{ secrets.JFROG_PASS }}
         HELIUM_IS_RELEASE: 'true'
       run: ./gradlew ci artifactoryPublish
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+
+    - name: Upload AAR
+      uses: actions/upload-artifact@v2
+      with:
+        name: AARS
+        path: AdMobAdapter/build/outputs/aar/*.aar

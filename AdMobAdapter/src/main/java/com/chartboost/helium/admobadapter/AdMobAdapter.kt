@@ -245,7 +245,8 @@ class AdMobAdapter : PartnerAdapter {
             )
             AdFormat.BANNER -> loadBanner(
                 context,
-                request
+                request,
+                partnerAdListener
             )
         }
     }
@@ -322,12 +323,12 @@ class AdMobAdapter : PartnerAdapter {
      */
     private suspend fun loadBanner(
         context: Context,
-        request: PartnerAdLoadRequest
+        request: PartnerAdLoadRequest,
+        listener: PartnerAdListener
     ): Result<PartnerAd> {
 
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
-                val listener = listeners[request.heliumPlacement]
                 val adview = AdView(context)
                 val partnerAd = PartnerAd(
                     ad = adview,
@@ -346,10 +347,7 @@ class AdMobAdapter : PartnerAdapter {
                 adview.adListener = object : AdListener() {
                     override fun onAdImpression() {
                         PartnerLogController.log(DID_TRACK_IMPRESSION)
-                        listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
-                            CUSTOM,
-                            "Unable to fire onPartnerAdImpression for AdMob adapter."
-                        )
+                        listener.onPartnerAdImpression(partnerAd)
                     }
 
                     override fun onAdLoaded() {
@@ -370,10 +368,7 @@ class AdMobAdapter : PartnerAdapter {
 
                     override fun onAdClicked() {
                         PartnerLogController.log(DID_CLICK)
-                        listener?.onPartnerAdClicked(partnerAd) ?: PartnerLogController.log(
-                            CUSTOM,
-                            "Unable to fire onPartnerAdClicked for AdMob adapter."
-                        )
+                        listener.onPartnerAdClicked(partnerAd)
                     }
 
                     override fun onAdClosed() {

@@ -7,6 +7,6 @@ pluginManagement {
 }
 
 rootProject.name = "AdMobAdapter"
-include ':AdMobAdapter'
-include ':android-helium-sdk'
-include ':Helium'
+include(":AdMobAdapter")
+include(":android-helium-sdk")
+include(":Helium")

@@ -307,11 +307,11 @@ class AdMobAdapter : PartnerAdapter {
                     SETUP_FAILED,
                     "Initialization state: $it.initializationState. Description: $it.description"
                 )
-                Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
+                Result.failure(HeliumAdException(HeliumError.HE_INITIALIZATION_FAILURE_UNKNOWN))
             }
         } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Initialization status is null.")
-            Result.failure(HeliumAdException(HeliumErrorCode.PARTNER_SDK_NOT_INITIALIZED))
+            Result.failure(HeliumAdException(HeliumError.HE_INITIALIZATION_FAILURE_UNKNOWN))
         }
     }
 
@@ -326,7 +326,6 @@ class AdMobAdapter : PartnerAdapter {
         request: PartnerAdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
-
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
                 val adview = AdView(context)
@@ -358,7 +357,7 @@ class AdMobAdapter : PartnerAdapter {
                     override fun onAdFailedToLoad(adError: LoadAdError) {
                         PartnerLogController.log(LOAD_FAILED, adError.message)
                         continuation.resume(
-                            Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
+                            Result.failure(HeliumAdException(getHeliumError(adError.code)))
                         )
                     }
 
@@ -436,7 +435,7 @@ class AdMobAdapter : PartnerAdapter {
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             continuation.resume(
-                                Result.failure(HeliumAdException(getHeliumErrorCode(loadAdError.code)))
+                                Result.failure(HeliumAdException(getHeliumError(loadAdError.code)))
                             )
                         }
                     }
@@ -485,7 +484,7 @@ class AdMobAdapter : PartnerAdapter {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             continuation.resume(
                                 Result.failure(
-                                    HeliumAdException(getHeliumErrorCode(loadAdError.code))
+                                    HeliumAdException(getHeliumError(loadAdError.code))
                                 )
                             )
                         }
@@ -512,7 +511,7 @@ class AdMobAdapter : PartnerAdapter {
             Result.success(partnerAd)
         } ?: run {
             PartnerLogController.log(SHOW_FAILED, "Banner ad is null.")
-            Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
+            Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_FOUND))
         }
     }
 
@@ -532,7 +531,7 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         if (context !is Activity) {
             PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
-            return Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
+            return Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
         }
 
         return suspendCoroutine { continuation ->
@@ -554,7 +553,7 @@ class AdMobAdapter : PartnerAdapter {
                             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                                 PartnerLogController.log(SHOW_FAILED, adError.message)
                                 continuation.resume(
-                                    Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
+                                    Result.failure(HeliumAdException(getHeliumError(adError.code)))
                                 )
                             }
 
@@ -576,7 +575,7 @@ class AdMobAdapter : PartnerAdapter {
                 }
             } ?: run {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL)))
+                continuation.resume(Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_FOUND)))
             }
         }
     }
@@ -597,7 +596,7 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         if (context !is Activity) {
             PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
-            return Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
+            return Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
         }
 
         return suspendCoroutine { continuation ->
@@ -617,7 +616,7 @@ class AdMobAdapter : PartnerAdapter {
                         override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                             PartnerLogController.log(SHOW_FAILED, adError.message)
                             continuation.resume(
-                                Result.failure(HeliumAdException(getHeliumErrorCode(adError.code)))
+                                Result.failure(HeliumAdException(getHeliumError(adError.code)))
                             )
                         }
 
@@ -647,7 +646,7 @@ class AdMobAdapter : PartnerAdapter {
                 }
             } ?: run {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                continuation.resume(Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL)))
+                continuation.resume(Result.failure(HeliumAdException(HeliumError.HE_SHOW_FAILURE_AD_NOT_FOUND)))
             }
         }
     }
@@ -669,11 +668,11 @@ class AdMobAdapter : PartnerAdapter {
                 Result.success(partnerAd)
             } else {
                 PartnerLogController.log(INVALIDATE_FAILED, "Ad is not an AdView.")
-                Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
+                Result.failure(HeliumAdException(HeliumError.HE_INVALIDATE_FAILURE_WRONG_RESOURCE_TYPE))
             }
         } ?: run {
             PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
-            Result.failure(HeliumAdException(HeliumErrorCode.INTERNAL))
+            Result.failure(HeliumAdException(HeliumError.HE_INVALIDATE_FAILURE_AD_NOT_FOUND))
         }
     }
 
@@ -730,22 +729,21 @@ class AdMobAdapter : PartnerAdapter {
     }
 
     /**
-     * Convert a given AdMob error code into a [HeliumErrorCode].
+     * Convert a given AdMob error code into a [HeliumError].
      *
      * @param error The AdMob error code as an [Int].
      *
-     * @return The corresponding [HeliumErrorCode].
+     * @return The corresponding [HeliumError].
      */
-    private fun getHeliumErrorCode(error: Int): HeliumErrorCode {
+    private fun getHeliumError(error: Int): HeliumError {
         return when (error) {
-            AdRequest.ERROR_CODE_APP_ID_MISSING -> HeliumErrorCode.INVALID_CONFIG
-            AdRequest.ERROR_CODE_INTERNAL_ERROR -> HeliumErrorCode.INTERNAL
-            AdRequest.ERROR_CODE_INVALID_AD_STRING -> HeliumErrorCode.INVALID_BID_PAYLOAD
-            AdRequest.ERROR_CODE_INVALID_REQUEST -> HeliumErrorCode.PARTNER_ERROR
-            AdRequest.ERROR_CODE_NETWORK_ERROR -> HeliumErrorCode.NO_CONNECTIVITY
-            AdRequest.ERROR_CODE_NO_FILL -> HeliumErrorCode.NO_FILL
-            AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> HeliumErrorCode.INVALID_CREDENTIALS
-            else -> HeliumErrorCode.INTERNAL
+            AdRequest.ERROR_CODE_APP_ID_MISSING -> HeliumError.HE_LOAD_FAILURE_NOT_INITIALIZED
+            AdRequest.ERROR_CODE_INTERNAL_ERROR -> HeliumError.HE_INTERNAL_ERROR
+            AdRequest.ERROR_CODE_INVALID_AD_STRING -> HeliumError.HE_LOAD_FAILURE_INVALID_AD_MARKUP
+            AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> HeliumError.HE_LOAD_FAILURE_INVALID_AD_REQUEST
+            AdRequest.ERROR_CODE_NETWORK_ERROR -> HeliumError.HE_NO_CONNECTIVITY
+            AdRequest.ERROR_CODE_NO_FILL -> HeliumError.HE_LOAD_FAILURE_NO_FILL
+            else -> HeliumError.HE_PARTNER_ERROR
         }
     }
 }

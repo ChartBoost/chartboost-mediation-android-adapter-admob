@@ -130,7 +130,7 @@ afterEvaluate {
                         developer {
                             id.set("chartboostmobile")
                             name.set("chartboost mobile")
-                            email.set("mobile@chartboost.com")
+                            email.set("support@chartboost.com")
                         }
                     }
 

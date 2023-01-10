@@ -571,6 +571,15 @@ class AdMobAdapter : PartnerAdapter {
                                 continuation.resume(Result.success(partnerAd))
                             }
 
+                            override fun onAdClicked() {
+                                PartnerLogController.log(DID_CLICK)
+                                listener?.onPartnerAdClicked(partnerAd)
+                                    ?: PartnerLogController.log(
+                                        CUSTOM,
+                                        "Unable to fire onPartnerAdClicked for AdMob adapter."
+                                    )
+                            }
+
                             override fun onAdDismissedFullScreenContent() {
                                 PartnerLogController.log(DID_DISMISS)
                                 listener?.onPartnerAdDismissed(partnerAd, null)
@@ -634,6 +643,15 @@ class AdMobAdapter : PartnerAdapter {
                             continuation.resume(Result.success(partnerAd))
                         }
 
+                        override fun onAdClicked() {
+                            PartnerLogController.log(DID_CLICK)
+                            listener?.onPartnerAdClicked(partnerAd)
+                                ?: PartnerLogController.log(
+                                    CUSTOM,
+                                    "Unable to fire onPartnerAdClicked for AdMob adapter."
+                                )
+                        }
+
                         override fun onAdDismissedFullScreenContent() {
                             PartnerLogController.log(DID_DISMISS)
                             listener?.onPartnerAdDismissed(partnerAd, null)
@@ -644,7 +662,7 @@ class AdMobAdapter : PartnerAdapter {
                         }
                     }
 
-                    rewardedAd.show(context) { reward ->
+                    rewardedAd.show(context) {
                         PartnerLogController.log(DID_REWARD)
                         listener?.onPartnerAdRewarded(partnerAd)
                             ?: PartnerLogController.log(

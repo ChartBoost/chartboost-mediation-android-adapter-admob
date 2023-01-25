@@ -1,19 +1,19 @@
 # Chartboost Mediation AdMob Adapter
 
-The Chartboost Mediation AdMob adapter mediates the AdMob SDK into the Chartboost Mediation SDK.
+The Chartboost Mediation AdMob adapter mediates AdMob via the Chartboost Mediation SDK.
 
 ## Minimum Requirements
 
-| Plugin | Version |
-| ------ | ------ |
-| Chartboost Mediation SDK | 4.0.0+ |
-| Android API | 21+ |
+| Plugin                   | Version |
+| ------------------------ | ------- |
+| Chartboost Mediation SDK | 4.0.0+  |
+| Android API              | 21+     |
 
 ## Integration
 
 In your `build.gradle`, add the following entry:
 ```
-    implementation "com.chartboost:mediation-adapter-admob:4.21.3.0.0"
+    implementation "com.chartboost:chartboost-mediation-adapter-admob:4.21.3.0.0"
 ```
 
 ## Contributions

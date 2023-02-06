@@ -59,7 +59,7 @@ class AdMobAdapter : PartnerAdapter {
     }
 
     /**
-     * A map of Chartboost Mediation's listeners for the corresponding Chartboost Mediation placements.
+     * A map of Chartboost Mediation's listeners for the corresponding Chartboost placements.
      */
     private val listeners = mutableMapOf<String, PartnerAdListener>()
 
@@ -277,7 +277,7 @@ class AdMobAdapter : PartnerAdapter {
      */
     override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
-        val listener = listeners.remove(partnerAd.request.chartboostMediationPlacement)
+        val listener = listeners.remove(partnerAd.request.chartboostPlacement)
 
         return when (partnerAd.request.format) {
             AdFormat.BANNER -> showBannerAd(partnerAd)
@@ -295,7 +295,7 @@ class AdMobAdapter : PartnerAdapter {
      */
     override suspend fun invalidate(partnerAd: PartnerAd): Result<PartnerAd> {
         PartnerLogController.log(INVALIDATE_STARTED)
-        listeners.remove(partnerAd.request.chartboostMediationPlacement)
+        listeners.remove(partnerAd.request.chartboostPlacement)
 
         // Only invalidate banners as there are no explicit methods to invalidate the other formats.
         return when (partnerAd.request.format) {
@@ -323,11 +323,11 @@ class AdMobAdapter : PartnerAdapter {
                     SETUP_FAILED,
                     "Initialization state: ${it.initializationState}. Description: ${it.description}"
                 )
-                Result.failure(HeliumAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
             }
         } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Initialization status is null.")
-            Result.failure(HeliumAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
         }
     }
 
@@ -373,7 +373,7 @@ class AdMobAdapter : PartnerAdapter {
                     override fun onAdFailedToLoad(adError: LoadAdError) {
                         PartnerLogController.log(LOAD_FAILED, adError.message)
                         continuation.resume(
-                            Result.failure(HeliumAdException(getHeliumError(adError.code)))
+                            Result.failure(ChartboostMediationAdException(getHeliumError(adError.code)))
                         )
                     }
 
@@ -427,7 +427,7 @@ class AdMobAdapter : PartnerAdapter {
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         // Save the listener for later use.
-        listeners[request.chartboostMediationPlacement] = listener
+        listeners[request.chartboostPlacement] = listener
 
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
@@ -451,7 +451,7 @@ class AdMobAdapter : PartnerAdapter {
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             continuation.resume(
-                                Result.failure(HeliumAdException(getHeliumError(loadAdError.code)))
+                                Result.failure(ChartboostMediationAdException(getHeliumError(loadAdError.code)))
                             )
                         }
                     }
@@ -475,7 +475,7 @@ class AdMobAdapter : PartnerAdapter {
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         // Save the listener for later use.
-        listeners[request.chartboostMediationPlacement] = listener
+        listeners[request.chartboostPlacement] = listener
 
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
@@ -500,7 +500,7 @@ class AdMobAdapter : PartnerAdapter {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             continuation.resume(
                                 Result.failure(
-                                    HeliumAdException(getHeliumError(loadAdError.code))
+                                    ChartboostMediationAdException(getHeliumError(loadAdError.code))
                                 )
                             )
                         }
@@ -527,7 +527,7 @@ class AdMobAdapter : PartnerAdapter {
             Result.success(partnerAd)
         } ?: run {
             PartnerLogController.log(SHOW_FAILED, "Banner ad is null.")
-            Result.failure(HeliumAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
         }
     }
 
@@ -547,7 +547,7 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         if (context !is Activity) {
             PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
-            return Result.failure(HeliumAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
         }
 
         return suspendCoroutine { continuation ->
@@ -569,7 +569,7 @@ class AdMobAdapter : PartnerAdapter {
                             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                                 PartnerLogController.log(SHOW_FAILED, adError.message)
                                 continuation.resume(
-                                    Result.failure(HeliumAdException(getHeliumError(adError.code)))
+                                    Result.failure(ChartboostMediationAdException(getHeliumError(adError.code)))
                                 )
                             }
 
@@ -600,7 +600,7 @@ class AdMobAdapter : PartnerAdapter {
                 }
             } ?: run {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                continuation.resume(Result.failure(HeliumAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND)))
+                continuation.resume(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND)))
             }
         }
     }
@@ -621,7 +621,7 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         if (context !is Activity) {
             PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
-            return Result.failure(HeliumAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
         }
 
         return suspendCoroutine { continuation ->
@@ -641,7 +641,7 @@ class AdMobAdapter : PartnerAdapter {
                         override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                             PartnerLogController.log(SHOW_FAILED, adError.message)
                             continuation.resume(
-                                Result.failure(HeliumAdException(getHeliumError(adError.code)))
+                                Result.failure(ChartboostMediationAdException(getHeliumError(adError.code)))
                             )
                         }
 
@@ -680,7 +680,7 @@ class AdMobAdapter : PartnerAdapter {
                 }
             } ?: run {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                continuation.resume(Result.failure(HeliumAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND)))
+                continuation.resume(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND)))
             }
         }
     }
@@ -702,11 +702,11 @@ class AdMobAdapter : PartnerAdapter {
                 Result.success(partnerAd)
             } else {
                 PartnerLogController.log(INVALIDATE_FAILED, "Ad is not an AdView.")
-                Result.failure(HeliumAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_WRONG_RESOURCE_TYPE))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_WRONG_RESOURCE_TYPE))
             }
         } ?: run {
             PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
-            Result.failure(HeliumAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_AD_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_AD_NOT_FOUND))
         }
     }
 

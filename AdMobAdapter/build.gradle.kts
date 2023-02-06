@@ -71,9 +71,7 @@ dependencies {
 
     // For external usage, please use the following production dependency.
     // You may choose a different release version.
-//    "remoteImplementation"("com.chartboost:chartboost-mediation-sdk:4.+")
-
-    "remoteImplementation"(project(":Helium"))
+    "remoteImplementation"("com.chartboost:chartboost-mediation-sdk:4.+")
 
     // Partner SDK
     implementation("com.google.android.gms:play-services-ads:21.3.0")

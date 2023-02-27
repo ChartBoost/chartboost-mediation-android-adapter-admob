@@ -24,6 +24,8 @@ import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.launch
@@ -264,6 +266,11 @@ class AdMobAdapter : PartnerAdapter {
                 request,
                 partnerAdListener
             )
+            AdFormat.REWARDED_INTERSTITIAL -> loadRewardedInterstitialAd(
+                context,
+                request,
+                partnerAdListener
+            )
         }
     }
 
@@ -283,6 +290,7 @@ class AdMobAdapter : PartnerAdapter {
             AdFormat.BANNER -> showBannerAd(partnerAd)
             AdFormat.INTERSTITIAL -> showInterstitialAd(context, partnerAd, listener)
             AdFormat.REWARDED -> showRewardedAd(context, partnerAd, listener)
+            AdFormat.REWARDED_INTERSTITIAL -> showRewardedInterstitialAd(context, partnerAd, listener)
         }
     }
 
@@ -511,6 +519,56 @@ class AdMobAdapter : PartnerAdapter {
     }
 
     /**
+     * Attempt to load an AdMob rewarded interstitial ad on the main thread.
+     *
+     * @param context The current [Context].
+     * @param request The [PartnerAdLoadRequest] containing relevant data for the current ad load call.
+     * @param listener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
+     *
+     * @return Result.success(PartnerAd) if the ad was successfully loaded, Result.failure(Exception) otherwise.
+     */
+    private suspend fun loadRewardedInterstitialAd(
+        context: Context,
+        request: PartnerAdLoadRequest,
+        listener: PartnerAdListener
+    ): Result<PartnerAd> {
+        // Save the listener for later use.
+        listeners[request.chartboostPlacement] = listener
+
+        return suspendCoroutine { continuation ->
+            CoroutineScope(Main).launch {
+                RewardedInterstitialAd.load(context,
+                    "ca-app-pub-6548817822928201/2477295426", // TODO: Update this with the correct placement ID.
+                    buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
+                    object : RewardedInterstitialAdLoadCallback() {
+                        override fun onAdLoaded(rewardedInterstitialAd: RewardedInterstitialAd) {
+                            PartnerLogController.log(LOAD_SUCCEEDED)
+                            continuation.resume(
+                                Result.success(
+                                    PartnerAd(
+                                        ad = rewardedInterstitialAd,
+                                        details = emptyMap(),
+                                        request = request
+                                    )
+                                )
+                            )
+                        }
+
+                        override fun onAdFailedToLoad(loadAdError: LoadAdError) {
+                            PartnerLogController.log(LOAD_FAILED, loadAdError.message)
+                            continuation.resume(
+                                Result.failure(
+                                    ChartboostMediationAdException(getHeliumError(loadAdError.code))
+                                )
+                            )
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    /**
      * Attempted to show an AdMob banner ad on the main thread.
      *
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
@@ -670,6 +728,88 @@ class AdMobAdapter : PartnerAdapter {
                     }
 
                     rewardedAd.show(context) {
+                        PartnerLogController.log(DID_REWARD)
+                        listener?.onPartnerAdRewarded(partnerAd)
+                            ?: PartnerLogController.log(
+                                CUSTOM,
+                                "Unable to fire onPartnerAdRewarded for AdMob adapter."
+                            )
+                    }
+                }
+            } ?: run {
+                PartnerLogController.log(SHOW_FAILED, "Ad is null.")
+                continuation.resume(Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND)))
+            }
+        }
+    }
+
+    /**
+     * Attempt to show an AdMob rewarded interstitial ad on the main thread.
+     *
+     * @param context The current [Context].
+     * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
+     * @param listener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
+     *
+     * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
+     */
+    private suspend fun showRewardedInterstitialAd(
+        context: Context,
+        partnerAd: PartnerAd,
+        listener: PartnerAdListener?
+    ): Result<PartnerAd> {
+        if (context !is Activity) {
+            PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
+            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
+        }
+
+        return suspendCoroutine { continuation ->
+            partnerAd.ad?.let { ad ->
+                CoroutineScope(Main).launch {
+                    val rewardedInterstitialAd = ad as RewardedInterstitialAd
+
+                    rewardedInterstitialAd.fullScreenContentCallback =
+                        object : FullScreenContentCallback() {
+                            override fun onAdImpression() {
+                                PartnerLogController.log(DID_TRACK_IMPRESSION)
+                                listener?.onPartnerAdImpression(partnerAd)
+                                    ?: PartnerLogController.log(
+                                        CUSTOM,
+                                        "Unable to fire onPartnerAdImpression for AdMob adapter."
+                                    )
+                            }
+
+                            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                                PartnerLogController.log(SHOW_FAILED, adError.message)
+                                continuation.resume(
+                                    Result.failure(ChartboostMediationAdException(getHeliumError(adError.code)))
+                                )
+                            }
+
+                            override fun onAdShowedFullScreenContent() {
+                                PartnerLogController.log(SHOW_SUCCEEDED)
+                                continuation.resume(Result.success(partnerAd))
+                            }
+
+                            override fun onAdClicked() {
+                                PartnerLogController.log(DID_CLICK)
+                                listener?.onPartnerAdClicked(partnerAd)
+                                    ?: PartnerLogController.log(
+                                        CUSTOM,
+                                        "Unable to fire onPartnerAdClicked for AdMob adapter."
+                                    )
+                            }
+
+                            override fun onAdDismissedFullScreenContent() {
+                                PartnerLogController.log(DID_DISMISS)
+                                listener?.onPartnerAdDismissed(partnerAd, null)
+                                    ?: PartnerLogController.log(
+                                        CUSTOM,
+                                        "Unable to fire onPartnerAdDismissed for AdMob adapter."
+                                    )
+                            }
+                        }
+
+                    rewardedInterstitialAd.show(context) {
                         PartnerLogController.log(DID_REWARD)
                         listener?.onPartnerAdRewarded(partnerAd)
                             ?: PartnerLogController.log(

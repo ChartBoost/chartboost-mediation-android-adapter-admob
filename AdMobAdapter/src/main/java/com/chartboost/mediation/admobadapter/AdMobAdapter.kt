@@ -538,7 +538,7 @@ class AdMobAdapter : PartnerAdapter {
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {
                 RewardedInterstitialAd.load(context,
-                    "ca-app-pub-6548817822928201/2477295426", // TODO: Update this with the correct placement ID.
+                    request.partnerPlacement,
                     buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
                     object : RewardedInterstitialAdLoadCallback() {
                         override fun onAdLoaded(rewardedInterstitialAd: RewardedInterstitialAd) {

@@ -271,6 +271,10 @@ class AdMobAdapter : PartnerAdapter {
                 request,
                 partnerAdListener
             )
+            else -> {
+                PartnerLogController.log(LOAD_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+            }
         }
     }
 
@@ -291,6 +295,10 @@ class AdMobAdapter : PartnerAdapter {
             AdFormat.INTERSTITIAL -> showInterstitialAd(context, partnerAd, listener)
             AdFormat.REWARDED -> showRewardedAd(context, partnerAd, listener)
             AdFormat.REWARDED_INTERSTITIAL -> showRewardedInterstitialAd(context, partnerAd, listener)
+            else -> {
+                PartnerLogController.log(SHOW_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+            }
         }
     }
 

@@ -34,7 +34,7 @@ android {
         minSdk = 21
         targetSdk = 33
         // If you touch the following line, don't forget to update scripts/get_rc_version.zsh
-        android.defaultConfig.versionName = System.getenv("VERSION_OVERRIDE") ?: "4.21.5.0.1"
+        android.defaultConfig.versionName = System.getenv("VERSION_OVERRIDE") ?: "4.21.4.0.1"
 
         buildConfigField(
             "String",
@@ -74,7 +74,7 @@ dependencies {
     "remoteImplementation"("com.chartboost:chartboost-mediation-sdk:4.0.0")
 
     // Partner SDK
-    implementation("com.google.android.gms:play-services-ads:21.5.0")
+    implementation("com.google.android.gms:play-services-ads:21.4.0")
 
     // Adapter Dependencies
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")

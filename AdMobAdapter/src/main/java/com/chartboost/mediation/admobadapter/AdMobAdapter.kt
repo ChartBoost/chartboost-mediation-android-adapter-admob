@@ -553,7 +553,7 @@ class AdMobAdapter : PartnerAdapter {
         listener: PartnerAdListener
     ): Result<PartnerAd> {
         // Save the listener for later use.
-        listeners[request.chartboostPlacement] = listener
+        listeners[request.identifier] = listener
 
         return suspendCoroutine { continuation ->
             CoroutineScope(Main).launch {

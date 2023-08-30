@@ -29,8 +29,8 @@ import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoa
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 class AdMobAdapter : PartnerAdapter {
     companion object {
@@ -131,9 +131,15 @@ class AdMobAdapter : PartnerAdapter {
         // https://developers.google.com/android/reference/com/google/android/gms/ads/MobileAds?hl=en#disableMediationAdapterInitialization(android.content.Context)
         MobileAds.disableMediationAdapterInitialization(context)
 
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<Unit>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             MobileAds.initialize(context) { status ->
-                continuation.resume(getInitResult(status.adapterStatusMap[MobileAds::class.java.name]))
+                resumeOnce(getInitResult(status.adapterStatusMap[MobileAds::class.java.name]))
             }
         }
     }
@@ -364,7 +370,13 @@ class AdMobAdapter : PartnerAdapter {
         request: PartnerAdLoadRequest,
         listener: PartnerAdListener
     ): Result<PartnerAd> {
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             CoroutineScope(Main).launch {
                 val adview = AdView(context)
                 val partnerAd = PartnerAd(
@@ -389,12 +401,12 @@ class AdMobAdapter : PartnerAdapter {
 
                     override fun onAdLoaded() {
                         PartnerLogController.log(LOAD_SUCCEEDED)
-                        continuation.resume(Result.success(partnerAd))
+                        resumeOnce(Result.success(partnerAd))
                     }
 
                     override fun onAdFailedToLoad(adError: LoadAdError) {
                         PartnerLogController.log(LOAD_FAILED, adError.message)
-                        continuation.resume(
+                        resumeOnce(
                             Result.failure(ChartboostMediationAdException(getHeliumError(adError.code)))
                         )
                     }
@@ -451,7 +463,13 @@ class AdMobAdapter : PartnerAdapter {
         // Save the listener for later use.
         listeners[request.identifier] = listener
 
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             CoroutineScope(Main).launch {
                 InterstitialAd.load(context,
                     request.partnerPlacement,
@@ -459,7 +477,7 @@ class AdMobAdapter : PartnerAdapter {
                     object : InterstitialAdLoadCallback() {
                         override fun onAdLoaded(interstitialAd: InterstitialAd) {
                             PartnerLogController.log(LOAD_SUCCEEDED)
-                            continuation.resume(
+                            resumeOnce(
                                 Result.success(
                                     PartnerAd(
                                         ad = interstitialAd,
@@ -472,7 +490,7 @@ class AdMobAdapter : PartnerAdapter {
 
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
-                            continuation.resume(
+                            resumeOnce(
                                 Result.failure(
                                     ChartboostMediationAdException(
                                         getHeliumError(
@@ -505,7 +523,13 @@ class AdMobAdapter : PartnerAdapter {
         // Save the listener for later use.
         listeners[request.identifier] = listener
 
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             CoroutineScope(Main).launch {
                 RewardedAd.load(context,
                     request.partnerPlacement,
@@ -513,7 +537,7 @@ class AdMobAdapter : PartnerAdapter {
                     object : RewardedAdLoadCallback() {
                         override fun onAdLoaded(rewardedAd: RewardedAd) {
                             PartnerLogController.log(LOAD_SUCCEEDED)
-                            continuation.resume(
+                            resumeOnce(
                                 Result.success(
                                     PartnerAd(
                                         ad = rewardedAd,
@@ -526,7 +550,7 @@ class AdMobAdapter : PartnerAdapter {
 
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
-                            continuation.resume(
+                            resumeOnce(
                                 Result.failure(
                                     ChartboostMediationAdException(getHeliumError(loadAdError.code))
                                 )
@@ -555,7 +579,13 @@ class AdMobAdapter : PartnerAdapter {
         // Save the listener for later use.
         listeners[request.identifier] = listener
 
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             CoroutineScope(Main).launch {
                 RewardedInterstitialAd.load(context,
                     request.partnerPlacement,
@@ -563,7 +593,7 @@ class AdMobAdapter : PartnerAdapter {
                     object : RewardedInterstitialAdLoadCallback() {
                         override fun onAdLoaded(rewardedInterstitialAd: RewardedInterstitialAd) {
                             PartnerLogController.log(LOAD_SUCCEEDED)
-                            continuation.resume(
+                            resumeOnce(
                                 Result.success(
                                     PartnerAd(
                                         ad = rewardedInterstitialAd,
@@ -576,7 +606,7 @@ class AdMobAdapter : PartnerAdapter {
 
                         override fun onAdFailedToLoad(loadAdError: LoadAdError) {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
-                            continuation.resume(
+                            resumeOnce(
                                 Result.failure(
                                     ChartboostMediationAdException(getHeliumError(loadAdError.code))
                                 )
@@ -628,7 +658,13 @@ class AdMobAdapter : PartnerAdapter {
             return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
         }
 
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             partnerAd.ad?.let { ad ->
                 CoroutineScope(Main).launch {
                     val interstitial = ad as InterstitialAd
@@ -646,7 +682,7 @@ class AdMobAdapter : PartnerAdapter {
 
                             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                                 PartnerLogController.log(SHOW_FAILED, adError.message)
-                                continuation.resume(
+                                resumeOnce(
                                     Result.failure(
                                         ChartboostMediationAdException(
                                             getHeliumError(
@@ -659,7 +695,7 @@ class AdMobAdapter : PartnerAdapter {
 
                             override fun onAdShowedFullScreenContent() {
                                 PartnerLogController.log(SHOW_SUCCEEDED)
-                                continuation.resume(Result.success(partnerAd))
+                                resumeOnce(Result.success(partnerAd))
                             }
 
                             override fun onAdClicked() {
@@ -684,7 +720,7 @@ class AdMobAdapter : PartnerAdapter {
                 }
             } ?: run {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                continuation.resume(
+                resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
                             ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
@@ -714,7 +750,13 @@ class AdMobAdapter : PartnerAdapter {
             return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
         }
 
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             partnerAd.ad?.let { ad ->
                 CoroutineScope(Main).launch {
                     val rewardedAd = ad as RewardedAd
@@ -730,14 +772,14 @@ class AdMobAdapter : PartnerAdapter {
 
                         override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                             PartnerLogController.log(SHOW_FAILED, adError.message)
-                            continuation.resume(
+                            resumeOnce(
                                 Result.failure(ChartboostMediationAdException(getHeliumError(adError.code)))
                             )
                         }
 
                         override fun onAdShowedFullScreenContent() {
                             PartnerLogController.log(SHOW_SUCCEEDED)
-                            continuation.resume(Result.success(partnerAd))
+                            resumeOnce(Result.success(partnerAd))
                         }
 
                         override fun onAdClicked() {
@@ -770,7 +812,7 @@ class AdMobAdapter : PartnerAdapter {
                 }
             } ?: run {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                continuation.resume(
+                resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
                             ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
@@ -800,7 +842,13 @@ class AdMobAdapter : PartnerAdapter {
             return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
         }
 
-        return suspendCoroutine { continuation ->
+        return suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<PartnerAd>) {
+                if (continuation.isActive) {
+                    continuation.resume(result)
+                }
+            }
+
             partnerAd.ad?.let { ad ->
                 CoroutineScope(Main).launch {
                     val rewardedInterstitialAd = ad as RewardedInterstitialAd
@@ -818,7 +866,7 @@ class AdMobAdapter : PartnerAdapter {
 
                             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
                                 PartnerLogController.log(SHOW_FAILED, adError.message)
-                                continuation.resume(
+                                resumeOnce(
                                     Result.failure(
                                         ChartboostMediationAdException(
                                             getHeliumError(
@@ -831,7 +879,7 @@ class AdMobAdapter : PartnerAdapter {
 
                             override fun onAdShowedFullScreenContent() {
                                 PartnerLogController.log(SHOW_SUCCEEDED)
-                                continuation.resume(Result.success(partnerAd))
+                                resumeOnce(Result.success(partnerAd))
                             }
 
                             override fun onAdClicked() {
@@ -864,7 +912,7 @@ class AdMobAdapter : PartnerAdapter {
                 }
             } ?: run {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
-                continuation.resume(
+                resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
                             ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND

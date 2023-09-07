@@ -267,7 +267,7 @@ class AdMobAdapter : PartnerAdapter {
                 request,
                 partnerAdListener
             )
-            AdFormat.BANNER -> loadBannerAd(
+            AdFormat.BANNER, AdFormat.ADAPTIVE_BANNER -> loadBannerAd(
                 context,
                 request,
                 partnerAdListener
@@ -300,7 +300,7 @@ class AdMobAdapter : PartnerAdapter {
         val listener = listeners.remove(partnerAd.request.identifier)
 
         return when (partnerAd.request.format) {
-            AdFormat.BANNER -> showBannerAd(partnerAd)
+            AdFormat.BANNER, AdFormat.ADAPTIVE_BANNER -> showBannerAd(partnerAd)
             AdFormat.INTERSTITIAL -> showInterstitialAd(context, partnerAd, listener)
             AdFormat.REWARDED -> showRewardedAd(context, partnerAd, listener)
             else -> {
@@ -327,7 +327,7 @@ class AdMobAdapter : PartnerAdapter {
 
         // Only invalidate banners as there are no explicit methods to invalidate the other formats.
         return when (partnerAd.request.format) {
-            AdFormat.BANNER -> destroyBannerAd(partnerAd)
+            AdFormat.BANNER, AdFormat.ADAPTIVE_BANNER -> destroyBannerAd(partnerAd)
             else -> {
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)

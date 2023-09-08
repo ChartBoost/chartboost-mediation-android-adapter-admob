@@ -256,18 +256,18 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
-        return when (request.format) {
-            AdFormat.INTERSTITIAL -> loadInterstitialAd(
+        return when (request.format.key) {
+            AdFormat.INTERSTITIAL.key -> loadInterstitialAd(
                 context,
                 request,
                 partnerAdListener
             )
-            AdFormat.REWARDED -> loadRewardedAd(
+            AdFormat.REWARDED.key -> loadRewardedAd(
                 context,
                 request,
                 partnerAdListener
             )
-            AdFormat.BANNER -> loadBannerAd(
+            AdFormat.BANNER.key, "adaptive_banner" -> loadBannerAd(
                 context,
                 request,
                 partnerAdListener
@@ -299,10 +299,10 @@ class AdMobAdapter : PartnerAdapter {
         PartnerLogController.log(SHOW_STARTED)
         val listener = listeners.remove(partnerAd.request.identifier)
 
-        return when (partnerAd.request.format) {
-            AdFormat.BANNER -> showBannerAd(partnerAd)
-            AdFormat.INTERSTITIAL -> showInterstitialAd(context, partnerAd, listener)
-            AdFormat.REWARDED -> showRewardedAd(context, partnerAd, listener)
+        return when (partnerAd.request.format.key) {
+            AdFormat.BANNER.key, "adaptive_banner" -> showBannerAd(partnerAd)
+            AdFormat.INTERSTITIAL.key -> showInterstitialAd(context, partnerAd, listener)
+            AdFormat.REWARDED.key -> showRewardedAd(context, partnerAd, listener)
             else -> {
                 if (partnerAd.request.format.key == "rewarded_interstitial") {
                     showRewardedInterstitialAd(context, partnerAd, listener)
@@ -326,8 +326,8 @@ class AdMobAdapter : PartnerAdapter {
         listeners.remove(partnerAd.request.identifier)
 
         // Only invalidate banners as there are no explicit methods to invalidate the other formats.
-        return when (partnerAd.request.format) {
-            AdFormat.BANNER -> destroyBannerAd(partnerAd)
+        return when (partnerAd.request.format.key) {
+            AdFormat.BANNER.key, "adaptive_banner" -> destroyBannerAd(partnerAd)
             else -> {
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)

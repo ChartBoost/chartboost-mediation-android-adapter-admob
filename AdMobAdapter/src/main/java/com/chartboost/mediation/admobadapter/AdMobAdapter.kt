@@ -381,11 +381,20 @@ class AdMobAdapter : PartnerAdapter {
                 val adview = AdView(context)
                 val partnerAd = PartnerAd(
                     ad = adview,
-                    details = emptyMap(),
+                    details = mutableMapOf(),
                     request = request,
                 )
 
-                adview.setAdSize(getAdMobAdSize(request.size))
+                val adSize = getAdMobAdSize(context, request.size, request.isAdaptiveBanner)
+
+                if(request.isAdaptiveBanner) {
+                    (partnerAd.details as MutableMap).let {
+                        it["banner_width_dips"] = "${adSize.width}"
+                        it["banner_height_dips"] = "${adSize.height}"
+                    }
+                }
+
+                adview.setAdSize(adSize)
                 adview.adUnitId = request.partnerPlacement
                 adview.loadAd(
                     buildRequest(
@@ -435,7 +444,13 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return The AdMob ad size that best matches the given [Size].
      */
-    private fun getAdMobAdSize(size: Size?): AdSize {
+    private fun getAdMobAdSize(context: Context, size: Size?, isAdaptive: Boolean = false): AdSize {
+        if(isAdaptive) {
+            return AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+                context, size?.width ?: AdSize.BANNER.width
+            )
+        }
+
         return size?.height?.let {
             when {
                 it in 50 until 90 -> AdSize.BANNER

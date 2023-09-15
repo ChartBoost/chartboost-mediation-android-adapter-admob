@@ -379,13 +379,24 @@ class AdMobAdapter : PartnerAdapter {
 
             CoroutineScope(Main).launch {
                 val adview = AdView(context)
+                val adSize = getAdMobAdSize(context, request.size, request.format.key == "adaptive_banner")
+
+                val details = if (request.format.key == "adaptive_banner") {
+                    mapOf(
+                        "banner_width_dips" to "${adSize.width}",
+                        "banner_height_dips" to "${adSize.height}"
+                    )
+                } else {
+                    emptyMap()
+                }
+
                 val partnerAd = PartnerAd(
                     ad = adview,
-                    details = emptyMap(),
+                    details = details,
                     request = request,
                 )
 
-                adview.setAdSize(getAdMobAdSize(request.size))
+                adview.setAdSize(adSize)
                 adview.adUnitId = request.partnerPlacement
                 adview.loadAd(
                     buildRequest(
@@ -431,11 +442,19 @@ class AdMobAdapter : PartnerAdapter {
     /**
      * Find the most appropriate AdMob ad size for the given screen area based on height.
      *
+     * @param context The current [Context].
      * @param size The [Size] to parse for conversion.
+     * @param isAdaptive whether or not the placement is for an adaptive banner.
      *
      * @return The AdMob ad size that best matches the given [Size].
      */
-    private fun getAdMobAdSize(size: Size?): AdSize {
+    private fun getAdMobAdSize(context: Context, size: Size?, isAdaptive: Boolean = false): AdSize {
+        if(isAdaptive) {
+            return AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+                context, size?.width ?: AdSize.BANNER.width
+            )
+        }
+
         return size?.height?.let {
             when {
                 it in 50 until 90 -> AdSize.BANNER

@@ -379,20 +379,22 @@ class AdMobAdapter : PartnerAdapter {
 
             CoroutineScope(Main).launch {
                 val adview = AdView(context)
-                val partnerAd = PartnerAd(
-                    ad = adview,
-                    details = mutableMapOf(),
-                    request = request,
-                )
-
                 val adSize = getAdMobAdSize(context, request.size, request.format.key == "adaptive_banner")
 
-                if (request.format.key == "adaptive_banner") {
-                    (partnerAd.details as MutableMap).let {
-                        it["banner_width_dips"] = "${adSize.width}"
-                        it["banner_height_dips"] = "${adSize.height}"
-                    }
+                val details = if (request.format.key == "adaptive_banner") {
+                    mapOf(
+                        "banner_width_dips" to "${adSize.width}",
+                        "banner_height_dips" to "${adSize.height}"
+                    )
+                } else {
+                    emptyMap()
                 }
+
+                val partnerAd = PartnerAd(
+                    ad = adview,
+                    details = details,
+                    request = request,
+                )
 
                 adview.setAdSize(adSize)
                 adview.adUnitId = request.partnerPlacement
@@ -440,7 +442,9 @@ class AdMobAdapter : PartnerAdapter {
     /**
      * Find the most appropriate AdMob ad size for the given screen area based on height.
      *
+     * @param context The current [Context].
      * @param size The [Size] to parse for conversion.
+     * @param isAdaptive whether or not the placement is for an adaptive banner.
      *
      * @return The AdMob ad size that best matches the given [Size].
      */

@@ -387,7 +387,7 @@ class AdMobAdapter : PartnerAdapter {
 
                 val adSize = getAdMobAdSize(context, request.size, request.format.key == "adaptive_banner")
 
-                if(request.format.key == "adaptive_banner") {
+                if (request.format.key == "adaptive_banner") {
                     (partnerAd.details as MutableMap).let {
                         it["banner_width_dips"] = "${adSize.width}"
                         it["banner_height_dips"] = "${adSize.height}"

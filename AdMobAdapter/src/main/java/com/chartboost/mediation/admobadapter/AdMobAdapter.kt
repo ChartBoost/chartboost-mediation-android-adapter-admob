@@ -27,9 +27,11 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 
 class AdMobAdapter : PartnerAdapter {
@@ -49,9 +51,12 @@ class AdMobAdapter : PartnerAdapter {
                         else value.joinToString()
                     }"
                 )
-                MobileAds.setRequestConfiguration(
-                    RequestConfiguration.Builder().setTestDeviceIds(value).build()
-                )
+                // There have been known ANRs when calling setRequestConfiguration() on the main thread.
+                CoroutineScope(IO).launch {
+                    MobileAds.setRequestConfiguration(
+                        RequestConfiguration.Builder().setTestDeviceIds(value).build()
+                    )
+                }
             }
 
         /**
@@ -127,9 +132,13 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        // Since Chartboost Mediation is the mediator, no need to initialize AdMob's partner SDKs.
-        // https://developers.google.com/android/reference/com/google/android/gms/ads/MobileAds?hl=en#disableMediationAdapterInitialization(android.content.Context)
-        MobileAds.disableMediationAdapterInitialization(context)
+        withContext(IO) {
+            // Since Chartboost Mediation is the mediator, no need to initialize AdMob's partner SDKs.
+            // https://developers.google.com/android/reference/com/google/android/gms/ads/MobileAds?hl=en#disableMediationAdapterInitialization(android.content.Context)
+            //
+            // There have been known ANRs when calling disableMediationAdapterInitialization() on the main thread.
+            MobileAds.disableMediationAdapterInitialization(context)
+        }
 
         return suspendCancellableCoroutine { continuation ->
             fun resumeOnce(result: Result<Unit>) {
@@ -211,16 +220,19 @@ class AdMobAdapter : PartnerAdapter {
             else COPPA_NOT_SUBJECT
         )
 
-        MobileAds.setRequestConfiguration(
-            MobileAds.getRequestConfiguration().toBuilder()
-                .setTagForChildDirectedTreatment(
-                    if (isSubjectToCoppa) {
-                        RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_TRUE
-                    } else {
-                        RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_FALSE
-                    }
-                ).build()
-        )
+        // There have been known ANRs when calling setRequestConfiguration() on the main thread.
+        CoroutineScope(IO).launch {
+            MobileAds.setRequestConfiguration(
+                MobileAds.getRequestConfiguration().toBuilder()
+                    .setTagForChildDirectedTreatment(
+                        if (isSubjectToCoppa) {
+                            RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_TRUE
+                        } else {
+                            RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_FALSE
+                        }
+                    ).build()
+            )
+        }
     }
 
     /**

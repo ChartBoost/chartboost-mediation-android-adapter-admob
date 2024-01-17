@@ -1,6 +1,6 @@
 /*
  * Copyright 2022-2023 Chartboost, Inc.
- * 
+ *
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
  */
@@ -39,7 +39,7 @@ android {
         buildConfigField(
             "String",
             "CHARTBOOST_MEDIATION_ADMOB_ADAPTER_VERSION",
-            "\"${android.defaultConfig.versionName}\""
+            "\"${android.defaultConfig.versionName}\"",
         )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -56,7 +56,7 @@ android {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                "proguard-rules.pro",
             )
         }
     }
@@ -95,10 +95,10 @@ artifactory {
                 setRepoKey("private-chartboost-mediation")
             }
             // Set the environment variables for these to be able to push to artifactory.
-            System.getenv("JFROG_USER")?.let{
+            System.getenv("JFROG_USER")?.let {
                 setUsername(it)
             }
-            System.getenv("JFROG_PASS")?.let{
+            System.getenv("JFROG_PASS")?.let {
                 setPassword(it)
             }
         }
@@ -119,11 +119,12 @@ afterEvaluate {
 
                 groupId = "com.chartboost"
                 artifactId = "chartboost-mediation-adapter-admob"
-                version = if (project.hasProperty("snapshot")) {
-                    android.defaultConfig.versionName + rootProject.ext["SNAPSHOT"]
-                } else {
-                    android.defaultConfig.versionName
-                }
+                version =
+                    if (project.hasProperty("snapshot")) {
+                        android.defaultConfig.versionName + rootProject.ext["SNAPSHOT"]
+                    } else {
+                        android.defaultConfig.versionName
+                    }
 
                 pom {
                     name.set("Chartboost Mediation Adapter AdMob")

@@ -47,15 +47,18 @@ class AdMobAdapter : PartnerAdapter {
                 PartnerLogController.log(
                     CUSTOM,
                     "AdMob test device ID(s) to be set: ${
-                        if (value.isEmpty()) "none"
-                        else value.joinToString()
-                    }"
+                        if (value.isEmpty()) {
+                            "none"
+                        } else {
+                            value.joinToString()
+                        }
+                    }",
                 )
 
                 // There have been known ANRs when calling setRequestConfiguration() on the main thread.
                 CoroutineScope(IO).launch {
                     MobileAds.setRequestConfiguration(
-                        RequestConfiguration.Builder().setTestDeviceIds(value).build()
+                        RequestConfiguration.Builder().setTestDeviceIds(value).build(),
                     )
                 }
             }
@@ -129,7 +132,7 @@ class AdMobAdapter : PartnerAdapter {
      */
     override suspend fun setUp(
         context: Context,
-        partnerConfiguration: PartnerConfiguration
+        partnerConfiguration: PartnerConfiguration,
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
@@ -164,14 +167,14 @@ class AdMobAdapter : PartnerAdapter {
     override fun setGdpr(
         context: Context,
         applies: Boolean?,
-        gdprConsentStatus: GdprConsentStatus
+        gdprConsentStatus: GdprConsentStatus,
     ) {
         PartnerLogController.log(
             when (applies) {
                 true -> GDPR_APPLICABLE
                 false -> GDPR_NOT_APPLICABLE
                 else -> GDPR_UNKNOWN
-            }
+            },
         )
 
         PartnerLogController.log(
@@ -179,7 +182,7 @@ class AdMobAdapter : PartnerAdapter {
                 GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
                 GdprConsentStatus.GDPR_CONSENT_GRANTED -> GDPR_CONSENT_GRANTED
                 GdprConsentStatus.GDPR_CONSENT_DENIED -> GDPR_CONSENT_DENIED
-            }
+            },
         )
 
         this.gdprApplies = applies
@@ -199,11 +202,14 @@ class AdMobAdapter : PartnerAdapter {
     override fun setCcpaConsent(
         context: Context,
         hasGrantedCcpaConsent: Boolean,
-        privacyString: String
+        privacyString: String,
     ) {
         PartnerLogController.log(
-            if (hasGrantedCcpaConsent) CCPA_CONSENT_GRANTED
-            else CCPA_CONSENT_DENIED
+            if (hasGrantedCcpaConsent) {
+                CCPA_CONSENT_GRANTED
+            } else {
+                CCPA_CONSENT_DENIED
+            },
         )
 
         ccpaPrivacyString = privacyString
@@ -215,10 +221,16 @@ class AdMobAdapter : PartnerAdapter {
      * @param context The current [Context].
      * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
      */
-    override fun setUserSubjectToCoppa(context: Context, isSubjectToCoppa: Boolean) {
+    override fun setUserSubjectToCoppa(
+        context: Context,
+        isSubjectToCoppa: Boolean,
+    ) {
         PartnerLogController.log(
-            if (isSubjectToCoppa) COPPA_SUBJECT
-            else COPPA_NOT_SUBJECT
+            if (isSubjectToCoppa) {
+                COPPA_SUBJECT
+            } else {
+                COPPA_NOT_SUBJECT
+            },
         )
 
         // There have been known ANRs when calling setRequestConfiguration() on the main thread.
@@ -230,8 +242,8 @@ class AdMobAdapter : PartnerAdapter {
                             RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_TRUE
                         } else {
                             RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_FALSE
-                        }
-                    ).build()
+                        },
+                    ).build(),
             )
         }
     }
@@ -246,7 +258,7 @@ class AdMobAdapter : PartnerAdapter {
      */
     override suspend fun fetchBidderInformation(
         context: Context,
-        request: PreBidRequest
+        request: PreBidRequest,
     ): Map<String, String> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
         PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
@@ -265,32 +277,35 @@ class AdMobAdapter : PartnerAdapter {
     override suspend fun load(
         context: Context,
         request: PartnerAdLoadRequest,
-        partnerAdListener: PartnerAdListener
+        partnerAdListener: PartnerAdListener,
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
         return when (request.format.key) {
-            AdFormat.INTERSTITIAL.key -> loadInterstitialAd(
-                context,
-                request,
-                partnerAdListener
-            )
-            AdFormat.REWARDED.key -> loadRewardedAd(
-                context,
-                request,
-                partnerAdListener
-            )
-            AdFormat.BANNER.key, "adaptive_banner" -> loadBannerAd(
-                context,
-                request,
-                partnerAdListener
-            )
+            AdFormat.INTERSTITIAL.key ->
+                loadInterstitialAd(
+                    context,
+                    request,
+                    partnerAdListener,
+                )
+            AdFormat.REWARDED.key ->
+                loadRewardedAd(
+                    context,
+                    request,
+                    partnerAdListener,
+                )
+            AdFormat.BANNER.key, "adaptive_banner" ->
+                loadBannerAd(
+                    context,
+                    request,
+                    partnerAdListener,
+                )
             else -> {
                 if (request.format.key == "rewarded_interstitial") {
                     loadRewardedInterstitialAd(
                         context,
                         request,
-                        partnerAdListener
+                        partnerAdListener,
                     )
                 } else {
                     PartnerLogController.log(LOAD_FAILED)
@@ -308,7 +323,10 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
-    override suspend fun show(context: Context, partnerAd: PartnerAd): Result<PartnerAd> {
+    override suspend fun show(
+        context: Context,
+        partnerAd: PartnerAd,
+    ): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
         val listener = listeners.remove(partnerAd.request.identifier)
 
@@ -362,7 +380,7 @@ class AdMobAdapter : PartnerAdapter {
             } else {
                 PartnerLogController.log(
                     SETUP_FAILED,
-                    "Initialization state: ${it.initializationState}. Description: ${it.description}"
+                    "Initialization state: ${it.initializationState}. Description: ${it.description}",
                 )
                 Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
             }
@@ -381,7 +399,7 @@ class AdMobAdapter : PartnerAdapter {
     private suspend fun loadBannerAd(
         context: Context,
         request: PartnerAdLoadRequest,
-        listener: PartnerAdListener
+        listener: PartnerAdListener,
     ): Result<PartnerAd> {
         return suspendCancellableCoroutine { continuation ->
             fun resumeOnce(result: Result<PartnerAd>) {
@@ -394,60 +412,63 @@ class AdMobAdapter : PartnerAdapter {
                 val adview = AdView(context)
                 val adSize = getAdMobAdSize(context, request.size, request.format.key == "adaptive_banner")
 
-                val details = if (request.format.key == "adaptive_banner") {
-                    mapOf(
-                        "banner_width_dips" to "${adSize.width}",
-                        "banner_height_dips" to "${adSize.height}"
-                    )
-                } else {
-                    emptyMap()
-                }
+                val details =
+                    if (request.format.key == "adaptive_banner") {
+                        mapOf(
+                            "banner_width_dips" to "${adSize.width}",
+                            "banner_height_dips" to "${adSize.height}",
+                        )
+                    } else {
+                        emptyMap()
+                    }
 
-                val partnerAd = PartnerAd(
-                    ad = adview,
-                    details = details,
-                    request = request,
-                )
+                val partnerAd =
+                    PartnerAd(
+                        ad = adview,
+                        details = details,
+                        request = request,
+                    )
 
                 adview.setAdSize(adSize)
                 adview.adUnitId = request.partnerPlacement
                 adview.loadAd(
                     buildRequest(
                         request.identifier,
-                        getIsHybridSetup(request.partnerSettings)
-                    )
+                        getIsHybridSetup(request.partnerSettings),
+                    ),
                 )
-                adview.adListener = object : AdListener() {
-                    override fun onAdImpression() {
-                        PartnerLogController.log(DID_TRACK_IMPRESSION)
-                        listener.onPartnerAdImpression(partnerAd)
-                    }
+                adview.adListener =
+                    object : AdListener() {
+                        override fun onAdImpression() {
+                            PartnerLogController.log(DID_TRACK_IMPRESSION)
+                            listener.onPartnerAdImpression(partnerAd)
+                        }
 
-                    override fun onAdLoaded() {
-                        PartnerLogController.log(LOAD_SUCCEEDED)
-                        resumeOnce(Result.success(partnerAd))
-                    }
+                        override fun onAdLoaded() {
+                            PartnerLogController.log(LOAD_SUCCEEDED)
+                            resumeOnce(Result.success(partnerAd))
+                        }
 
-                    override fun onAdFailedToLoad(adError: LoadAdError) {
-                        PartnerLogController.log(LOAD_FAILED, adError.message)
-                        resumeOnce(
-                            Result.failure(ChartboostMediationAdException(getHeliumError(adError.code)))
-                        )
-                    }
+                        override fun onAdFailedToLoad(adError: LoadAdError) {
+                            PartnerLogController.log(LOAD_FAILED, adError.message)
+                            resumeOnce(
+                                Result.failure(ChartboostMediationAdException(getHeliumError(adError.code))),
+                            )
+                        }
 
-                    override fun onAdOpened() {
-                        // NO-OP
-                    }
+                        override fun onAdOpened() {
+                            // NO-OP
+                        }
 
-                    override fun onAdClicked() {
-                        PartnerLogController.log(DID_CLICK)
-                        listener.onPartnerAdClicked(partnerAd)
-                    }
+                        override fun onAdClicked() {
+                            PartnerLogController.log(DID_CLICK)
+                            listener.onPartnerAdClicked(partnerAd)
+                        }
 
-                    override fun onAdClosed() {
-                        // NO-OP. Ignore banner closes to help avoid auto-refresh issues.
+                        override fun onAdClosed() {
+                            // NO-OP. Ignore banner closes to help avoid auto-refresh issues.
+                        }
                     }
-                }
             }
         }
     }
@@ -461,10 +482,15 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return The AdMob ad size that best matches the given [Size].
      */
-    private fun getAdMobAdSize(context: Context, size: Size?, isAdaptive: Boolean = false): AdSize {
-        if(isAdaptive) {
+    private fun getAdMobAdSize(
+        context: Context,
+        size: Size?,
+        isAdaptive: Boolean = false,
+    ): AdSize {
+        if (isAdaptive) {
             return AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
-                context, size?.width ?: AdSize.BANNER.width
+                context,
+                size?.width ?: AdSize.BANNER.width,
             )
         }
 
@@ -490,7 +516,7 @@ class AdMobAdapter : PartnerAdapter {
     private suspend fun loadInterstitialAd(
         context: Context,
         request: PartnerAdLoadRequest,
-        listener: PartnerAdListener
+        listener: PartnerAdListener,
     ): Result<PartnerAd> {
         // Save the listener for later use.
         listeners[request.identifier] = listener
@@ -503,7 +529,8 @@ class AdMobAdapter : PartnerAdapter {
             }
 
             CoroutineScope(Main).launch {
-                InterstitialAd.load(context,
+                InterstitialAd.load(
+                    context,
                     request.partnerPlacement,
                     buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
                     object : InterstitialAdLoadCallback() {
@@ -514,9 +541,9 @@ class AdMobAdapter : PartnerAdapter {
                                     PartnerAd(
                                         ad = interstitialAd,
                                         details = emptyMap(),
-                                        request = request
-                                    )
-                                )
+                                        request = request,
+                                    ),
+                                ),
                             )
                         }
 
@@ -526,13 +553,13 @@ class AdMobAdapter : PartnerAdapter {
                                 Result.failure(
                                     ChartboostMediationAdException(
                                         getHeliumError(
-                                            loadAdError.code
-                                        )
-                                    )
-                                )
+                                            loadAdError.code,
+                                        ),
+                                    ),
+                                ),
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -550,7 +577,7 @@ class AdMobAdapter : PartnerAdapter {
     private suspend fun loadRewardedAd(
         context: Context,
         request: PartnerAdLoadRequest,
-        listener: PartnerAdListener
+        listener: PartnerAdListener,
     ): Result<PartnerAd> {
         // Save the listener for later use.
         listeners[request.identifier] = listener
@@ -563,7 +590,8 @@ class AdMobAdapter : PartnerAdapter {
             }
 
             CoroutineScope(Main).launch {
-                RewardedAd.load(context,
+                RewardedAd.load(
+                    context,
                     request.partnerPlacement,
                     buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
                     object : RewardedAdLoadCallback() {
@@ -574,9 +602,9 @@ class AdMobAdapter : PartnerAdapter {
                                     PartnerAd(
                                         ad = rewardedAd,
                                         details = emptyMap(),
-                                        request = request
-                                    )
-                                )
+                                        request = request,
+                                    ),
+                                ),
                             )
                         }
 
@@ -584,11 +612,11 @@ class AdMobAdapter : PartnerAdapter {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             resumeOnce(
                                 Result.failure(
-                                    ChartboostMediationAdException(getHeliumError(loadAdError.code))
-                                )
+                                    ChartboostMediationAdException(getHeliumError(loadAdError.code)),
+                                ),
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -606,7 +634,7 @@ class AdMobAdapter : PartnerAdapter {
     private suspend fun loadRewardedInterstitialAd(
         context: Context,
         request: PartnerAdLoadRequest,
-        listener: PartnerAdListener
+        listener: PartnerAdListener,
     ): Result<PartnerAd> {
         // Save the listener for later use.
         listeners[request.identifier] = listener
@@ -619,7 +647,8 @@ class AdMobAdapter : PartnerAdapter {
             }
 
             CoroutineScope(Main).launch {
-                RewardedInterstitialAd.load(context,
+                RewardedInterstitialAd.load(
+                    context,
                     request.partnerPlacement,
                     buildRequest(request.identifier, getIsHybridSetup(request.partnerSettings)),
                     object : RewardedInterstitialAdLoadCallback() {
@@ -630,9 +659,9 @@ class AdMobAdapter : PartnerAdapter {
                                     PartnerAd(
                                         ad = rewardedInterstitialAd,
                                         details = emptyMap(),
-                                        request = request
-                                    )
-                                )
+                                        request = request,
+                                    ),
+                                ),
                             )
                         }
 
@@ -640,11 +669,11 @@ class AdMobAdapter : PartnerAdapter {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             resumeOnce(
                                 Result.failure(
-                                    ChartboostMediationAdException(getHeliumError(loadAdError.code))
-                                )
+                                    ChartboostMediationAdException(getHeliumError(loadAdError.code)),
+                                ),
                             )
                         }
-                    }
+                    },
                 )
             }
         }
@@ -683,7 +712,7 @@ class AdMobAdapter : PartnerAdapter {
     private suspend fun showInterstitialAd(
         context: Context,
         partnerAd: PartnerAd,
-        listener: PartnerAdListener?
+        listener: PartnerAdListener?,
     ): Result<PartnerAd> {
         if (context !is Activity) {
             PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
@@ -708,7 +737,7 @@ class AdMobAdapter : PartnerAdapter {
                                 listener?.onPartnerAdImpression(partnerAd)
                                     ?: PartnerLogController.log(
                                         CUSTOM,
-                                        "Unable to fire onPartnerAdImpression for AdMob adapter."
+                                        "Unable to fire onPartnerAdImpression for AdMob adapter.",
                                     )
                             }
 
@@ -718,10 +747,10 @@ class AdMobAdapter : PartnerAdapter {
                                     Result.failure(
                                         ChartboostMediationAdException(
                                             getHeliumError(
-                                                adError.code
-                                            )
-                                        )
-                                    )
+                                                adError.code,
+                                            ),
+                                        ),
+                                    ),
                                 )
                             }
 
@@ -735,7 +764,7 @@ class AdMobAdapter : PartnerAdapter {
                                 listener?.onPartnerAdClicked(partnerAd)
                                     ?: PartnerLogController.log(
                                         CUSTOM,
-                                        "Unable to fire onPartnerAdClicked for AdMob adapter."
+                                        "Unable to fire onPartnerAdClicked for AdMob adapter.",
                                     )
                             }
 
@@ -744,7 +773,7 @@ class AdMobAdapter : PartnerAdapter {
                                 listener?.onPartnerAdDismissed(partnerAd, null)
                                     ?: PartnerLogController.log(
                                         CUSTOM,
-                                        "Unable to fire onPartnerAdDismissed for AdMob adapter."
+                                        "Unable to fire onPartnerAdDismissed for AdMob adapter.",
                                     )
                             }
                         }
@@ -755,9 +784,9 @@ class AdMobAdapter : PartnerAdapter {
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
-                        )
-                    )
+                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                        ),
+                    ),
                 )
             }
         }
@@ -775,7 +804,7 @@ class AdMobAdapter : PartnerAdapter {
     private suspend fun showRewardedAd(
         context: Context,
         partnerAd: PartnerAd,
-        listener: PartnerAdListener?
+        listener: PartnerAdListener?,
     ): Result<PartnerAd> {
         if (context !is Activity) {
             PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
@@ -793,52 +822,53 @@ class AdMobAdapter : PartnerAdapter {
                 CoroutineScope(Main).launch {
                     val rewardedAd = ad as RewardedAd
 
-                    rewardedAd.fullScreenContentCallback = object : FullScreenContentCallback() {
-                        override fun onAdImpression() {
-                            PartnerLogController.log(DID_TRACK_IMPRESSION)
-                            listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
-                                CUSTOM,
-                                "Unable to fire onPartnerAdImpression for AdMob adapter."
-                            )
-                        }
-
-                        override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                            PartnerLogController.log(SHOW_FAILED, adError.message)
-                            resumeOnce(
-                                Result.failure(ChartboostMediationAdException(getHeliumError(adError.code)))
-                            )
-                        }
-
-                        override fun onAdShowedFullScreenContent() {
-                            PartnerLogController.log(SHOW_SUCCEEDED)
-                            resumeOnce(Result.success(partnerAd))
-                        }
-
-                        override fun onAdClicked() {
-                            PartnerLogController.log(DID_CLICK)
-                            listener?.onPartnerAdClicked(partnerAd)
-                                ?: PartnerLogController.log(
+                    rewardedAd.fullScreenContentCallback =
+                        object : FullScreenContentCallback() {
+                            override fun onAdImpression() {
+                                PartnerLogController.log(DID_TRACK_IMPRESSION)
+                                listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
                                     CUSTOM,
-                                    "Unable to fire onPartnerAdClicked for AdMob adapter."
+                                    "Unable to fire onPartnerAdImpression for AdMob adapter.",
                                 )
-                        }
+                            }
 
-                        override fun onAdDismissedFullScreenContent() {
-                            PartnerLogController.log(DID_DISMISS)
-                            listener?.onPartnerAdDismissed(partnerAd, null)
-                                ?: PartnerLogController.log(
-                                    CUSTOM,
-                                    "Unable to fire onPartnerAdDismissed for AdMob adapter."
+                            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                                PartnerLogController.log(SHOW_FAILED, adError.message)
+                                resumeOnce(
+                                    Result.failure(ChartboostMediationAdException(getHeliumError(adError.code))),
                                 )
+                            }
+
+                            override fun onAdShowedFullScreenContent() {
+                                PartnerLogController.log(SHOW_SUCCEEDED)
+                                resumeOnce(Result.success(partnerAd))
+                            }
+
+                            override fun onAdClicked() {
+                                PartnerLogController.log(DID_CLICK)
+                                listener?.onPartnerAdClicked(partnerAd)
+                                    ?: PartnerLogController.log(
+                                        CUSTOM,
+                                        "Unable to fire onPartnerAdClicked for AdMob adapter.",
+                                    )
+                            }
+
+                            override fun onAdDismissedFullScreenContent() {
+                                PartnerLogController.log(DID_DISMISS)
+                                listener?.onPartnerAdDismissed(partnerAd, null)
+                                    ?: PartnerLogController.log(
+                                        CUSTOM,
+                                        "Unable to fire onPartnerAdDismissed for AdMob adapter.",
+                                    )
+                            }
                         }
-                    }
 
                     rewardedAd.show(context) {
                         PartnerLogController.log(DID_REWARD)
                         listener?.onPartnerAdRewarded(partnerAd)
                             ?: PartnerLogController.log(
                                 CUSTOM,
-                                "Unable to fire onPartnerAdRewarded for AdMob adapter."
+                                "Unable to fire onPartnerAdRewarded for AdMob adapter.",
                             )
                     }
                 }
@@ -847,9 +877,9 @@ class AdMobAdapter : PartnerAdapter {
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
-                        )
-                    )
+                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                        ),
+                    ),
                 )
             }
         }
@@ -867,7 +897,7 @@ class AdMobAdapter : PartnerAdapter {
     private suspend fun showRewardedInterstitialAd(
         context: Context,
         partnerAd: PartnerAd,
-        listener: PartnerAdListener?
+        listener: PartnerAdListener?,
     ): Result<PartnerAd> {
         if (context !is Activity) {
             PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
@@ -892,7 +922,7 @@ class AdMobAdapter : PartnerAdapter {
                                 listener?.onPartnerAdImpression(partnerAd)
                                     ?: PartnerLogController.log(
                                         CUSTOM,
-                                        "Unable to fire onPartnerAdImpression for AdMob adapter."
+                                        "Unable to fire onPartnerAdImpression for AdMob adapter.",
                                     )
                             }
 
@@ -902,10 +932,10 @@ class AdMobAdapter : PartnerAdapter {
                                     Result.failure(
                                         ChartboostMediationAdException(
                                             getHeliumError(
-                                                adError.code
-                                            )
-                                        )
-                                    )
+                                                adError.code,
+                                            ),
+                                        ),
+                                    ),
                                 )
                             }
 
@@ -919,7 +949,7 @@ class AdMobAdapter : PartnerAdapter {
                                 listener?.onPartnerAdClicked(partnerAd)
                                     ?: PartnerLogController.log(
                                         CUSTOM,
-                                        "Unable to fire onPartnerAdClicked for AdMob adapter."
+                                        "Unable to fire onPartnerAdClicked for AdMob adapter.",
                                     )
                             }
 
@@ -928,7 +958,7 @@ class AdMobAdapter : PartnerAdapter {
                                 listener?.onPartnerAdDismissed(partnerAd, null)
                                     ?: PartnerLogController.log(
                                         CUSTOM,
-                                        "Unable to fire onPartnerAdDismissed for AdMob adapter."
+                                        "Unable to fire onPartnerAdDismissed for AdMob adapter.",
                                     )
                             }
                         }
@@ -938,7 +968,7 @@ class AdMobAdapter : PartnerAdapter {
                         listener?.onPartnerAdRewarded(partnerAd)
                             ?: PartnerLogController.log(
                                 CUSTOM,
-                                "Unable to fire onPartnerAdRewarded for AdMob adapter."
+                                "Unable to fire onPartnerAdRewarded for AdMob adapter.",
                             )
                     }
                 }
@@ -947,9 +977,9 @@ class AdMobAdapter : PartnerAdapter {
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND
-                        )
-                    )
+                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                        ),
+                    ),
                 )
             }
         }
@@ -988,7 +1018,10 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return An AdMob [AdRequest] object.
      */
-    private fun buildRequest(identifier: String, isHybridSetup: Boolean): AdRequest {
+    private fun buildRequest(
+        identifier: String,
+        isHybridSetup: Boolean,
+    ): AdRequest {
         val extras = buildPrivacyConsents()
 
         if (isHybridSetup) {
@@ -1041,13 +1074,14 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return The corresponding [ChartboostMediationError].
      */
-    private fun getHeliumError(error: Int) = when (error) {
-        AdRequest.ERROR_CODE_APP_ID_MISSING -> ChartboostMediationError.CM_LOAD_FAILURE_PARTNER_NOT_INITIALIZED
-        AdRequest.ERROR_CODE_INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
-        AdRequest.ERROR_CODE_INVALID_AD_STRING -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_MARKUP
-        AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
-        AdRequest.ERROR_CODE_NETWORK_ERROR -> ChartboostMediationError.CM_NO_CONNECTIVITY
-        AdRequest.ERROR_CODE_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-        else -> ChartboostMediationError.CM_PARTNER_ERROR
-    }
+    private fun getHeliumError(error: Int) =
+        when (error) {
+            AdRequest.ERROR_CODE_APP_ID_MISSING -> ChartboostMediationError.CM_LOAD_FAILURE_PARTNER_NOT_INITIALIZED
+            AdRequest.ERROR_CODE_INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
+            AdRequest.ERROR_CODE_INVALID_AD_STRING -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_MARKUP
+            AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
+            AdRequest.ERROR_CODE_NETWORK_ERROR -> ChartboostMediationError.CM_NO_CONNECTIVITY
+            AdRequest.ERROR_CODE_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
+            else -> ChartboostMediationError.CM_PARTNER_ERROR
+        }
 }

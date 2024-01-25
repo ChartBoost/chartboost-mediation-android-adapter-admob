@@ -753,8 +753,8 @@ class AdMobAdapter : PartnerAdapter {
 
                     interstitial.fullScreenContentCallback =
                         InterstitialAdShowCallback(
-                            WeakReference(listener),
-                            WeakReference(partnerAd),
+                            listener,
+                            partnerAd,
                             WeakReference(continuation),
                         )
                     interstitial.show(context)
@@ -804,8 +804,8 @@ class AdMobAdapter : PartnerAdapter {
 
                     rewardedAd.fullScreenContentCallback =
                         RewardedAdShowCallback(
-                            WeakReference(listener),
-                            WeakReference(partnerAd),
+                            listener,
+                            partnerAd,
                             WeakReference(continuation),
                         )
 
@@ -863,8 +863,8 @@ class AdMobAdapter : PartnerAdapter {
 
                     rewardedInterstitialAd.fullScreenContentCallback =
                         RewardedInterstitialAdShowCallback(
-                            WeakReference(listener),
-                            WeakReference(partnerAd),
+                            listener,
+                            partnerAd,
                             WeakReference(continuation),
                         )
 
@@ -976,26 +976,20 @@ class AdMobAdapter : PartnerAdapter {
 /**
  * Callback class for interstitial ads.
  *
- * @param listenerRef A [WeakReference] to the [PartnerAdListener] to be notified of ad events.
- * @param partnerAdRef A [WeakReference] to the [PartnerAd] object containing the AdMob ad to be shown.
+ * @param listener A [PartnerAdListener] to be notified of ad events.
+ * @param partnerAd A [PartnerAd] object containing the AdMob ad to be shown.
  * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
  */
 private class InterstitialAdShowCallback(
-    private val listenerRef: WeakReference<PartnerAdListener?>,
-    private val partnerAdRef: WeakReference<PartnerAd>,
+    private val listener: PartnerAdListener?,
+    private val partnerAd: PartnerAd,
     private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
 ) : FullScreenContentCallback() {
     override fun onAdImpression() {
         PartnerLogController.log(DID_TRACK_IMPRESSION)
-
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdImpression(it) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdImpression for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
         )
     }
 
@@ -1020,46 +1014,29 @@ private class InterstitialAdShowCallback(
     override fun onAdShowedFullScreenContent() {
         PartnerLogController.log(SHOW_SUCCEEDED)
 
-        partnerAdRef.get()?.let {
-            continuationRef.get()?.let { continuation ->
-                if (continuation.isActive) {
-                    continuation.resume(Result.success(it))
-                }
-            } ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
-            )
+        continuationRef.get()?.let { continuation ->
+            if (continuation.isActive) {
+                continuation.resume(Result.success(partnerAd))
+            }
         } ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to resume continuation in onAdShowedFullScreenContent(). PartnerAd is null.",
+            "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
         )
     }
 
     override fun onAdClicked() {
         PartnerLogController.log(DID_CLICK)
-
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdClicked(it) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdClicked(partnerAd) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdClicked for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
         )
     }
 
     override fun onAdDismissedFullScreenContent() {
         PartnerLogController.log(DID_DISMISS)
-
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdDismissed(it, null) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdDismissed(partnerAd, null) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdDismissed for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
         )
     }
 }
@@ -1067,26 +1044,21 @@ private class InterstitialAdShowCallback(
 /**
  * Callback class for rewarded ads.
  *
- * @param listenerRef A [WeakReference] to the [PartnerAdListener] to be notified of ad events.
- * @param partnerAdRef A [WeakReference] to the [PartnerAd] object containing the AdMob ad to be shown.
+ * @param listener A [PartnerAdListener] to be notified of ad events.
+ * @param partnerAd A [PartnerAd] object containing the AdMob ad to be shown.
  * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
  */
 private class RewardedAdShowCallback(
-    private val listenerRef: WeakReference<PartnerAdListener?>,
-    private val partnerAdRef: WeakReference<PartnerAd>,
+    private val listener: PartnerAdListener?,
+    private val partnerAd: PartnerAd,
     private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
 ) : FullScreenContentCallback() {
     override fun onAdImpression() {
         PartnerLogController.log(DID_TRACK_IMPRESSION)
 
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdImpression(it) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdImpression for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
         )
     }
 
@@ -1111,46 +1083,31 @@ private class RewardedAdShowCallback(
     override fun onAdShowedFullScreenContent() {
         PartnerLogController.log(SHOW_SUCCEEDED)
 
-        partnerAdRef.get()?.let {
-            continuationRef.get()?.let { continuation ->
-                if (continuation.isActive) {
-                    continuation.resume(Result.success(it))
-                }
-            } ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
-            )
+        continuationRef.get()?.let { continuation ->
+            if (continuation.isActive) {
+                continuation.resume(Result.success(partnerAd))
+            }
         } ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to resume continuation in onAdShowedFullScreenContent(). PartnerAd is null.",
+            "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
         )
     }
 
     override fun onAdClicked() {
         PartnerLogController.log(DID_CLICK)
 
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdClicked(it) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdClicked(partnerAd) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdClicked for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
         )
     }
 
     override fun onAdDismissedFullScreenContent() {
         PartnerLogController.log(DID_DISMISS)
 
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdDismissed(it, null) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdDismissed(partnerAd, null) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdDismissed for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
         )
     }
 }
@@ -1158,26 +1115,20 @@ private class RewardedAdShowCallback(
 /**
  * Callback class for rewarded interstitial ads.
  *
- * @param listenerRef A [WeakReference] to the [PartnerAdListener] to be notified of ad events.
- * @param partnerAdRef A [WeakReference] to the [PartnerAd] object containing the AdMob ad to be shown.
+ * @param listener A [PartnerAdListener] to be notified of ad events.
+ * @param partnerAd A [PartnerAd] object containing the AdMob ad to be shown.
  * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
  */
 private class RewardedInterstitialAdShowCallback(
-    private val listenerRef: WeakReference<PartnerAdListener?>,
-    private val partnerAdRef: WeakReference<PartnerAd>,
+    private val listener: PartnerAdListener?,
+    private val partnerAd: PartnerAd,
     private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
 ) : FullScreenContentCallback() {
     override fun onAdImpression() {
         PartnerLogController.log(DID_TRACK_IMPRESSION)
-
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdImpression(it) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdImpression for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
         )
     }
 
@@ -1201,47 +1152,31 @@ private class RewardedInterstitialAdShowCallback(
 
     override fun onAdShowedFullScreenContent() {
         PartnerLogController.log(SHOW_SUCCEEDED)
-
-        partnerAdRef.get()?.let {
-            continuationRef.get()?.let { continuation ->
-                if (continuation.isActive) {
-                    continuation.resume(Result.success(it))
-                }
-            } ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
-            )
+        continuationRef.get()?.let { continuation ->
+            if (continuation.isActive) {
+                continuation.resume(Result.success(partnerAd))
+            }
         } ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to resume continuation in onAdShowedFullScreenContent(). PartnerAd is null.",
+            "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
         )
     }
 
     override fun onAdClicked() {
         PartnerLogController.log(DID_CLICK)
 
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdClicked(it) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdClicked(partnerAd) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdClicked for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
         )
     }
 
     override fun onAdDismissedFullScreenContent() {
         PartnerLogController.log(DID_DISMISS)
 
-        partnerAdRef.get()?.let {
-            listenerRef.get()?.onPartnerAdDismissed(it, null) ?: PartnerLogController.log(
-                CUSTOM,
-                "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
-            )
-        } ?: PartnerLogController.log(
+        listener?.onPartnerAdDismissed(partnerAd, null) ?: PartnerLogController.log(
             CUSTOM,
-            "Unable to fire onPartnerAdDismissed for AdMob adapter. PartnerAd is null",
+            "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
         )
     }
 }

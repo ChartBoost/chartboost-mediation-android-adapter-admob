@@ -17,6 +17,7 @@ import com.chartboost.heliumsdk.domain.*
 import com.chartboost.heliumsdk.domain.AdFormat
 import com.chartboost.heliumsdk.utils.PartnerLogController
 import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.mediation.admobadapter.AdMobAdapter.Companion.getChartboostMediationError
 import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.android.gms.ads.*
 import com.google.android.gms.ads.initialization.AdapterStatus
@@ -26,12 +27,14 @@ import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
 
 class AdMobAdapter : PartnerAdapter {
@@ -61,6 +64,24 @@ class AdMobAdapter : PartnerAdapter {
                         RequestConfiguration.Builder().setTestDeviceIds(value).build(),
                     )
                 }
+            }
+
+        /**
+         * Convert a given AdMob error code into a [ChartboostMediationError].
+         *
+         * @param error The AdMob error code as an [Int].
+         *
+         * @return The corresponding [ChartboostMediationError].
+         */
+        internal fun getChartboostMediationError(error: Int) =
+            when (error) {
+                AdRequest.ERROR_CODE_APP_ID_MISSING -> ChartboostMediationError.CM_LOAD_FAILURE_PARTNER_NOT_INITIALIZED
+                AdRequest.ERROR_CODE_INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
+                AdRequest.ERROR_CODE_INVALID_AD_STRING -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_MARKUP
+                AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
+                AdRequest.ERROR_CODE_NETWORK_ERROR -> ChartboostMediationError.CM_NO_CONNECTIVITY
+                AdRequest.ERROR_CODE_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
+                else -> ChartboostMediationError.CM_PARTNER_ERROR
             }
 
         /**
@@ -452,7 +473,7 @@ class AdMobAdapter : PartnerAdapter {
                         override fun onAdFailedToLoad(adError: LoadAdError) {
                             PartnerLogController.log(LOAD_FAILED, adError.message)
                             resumeOnce(
-                                Result.failure(ChartboostMediationAdException(getHeliumError(adError.code))),
+                                Result.failure(ChartboostMediationAdException(getChartboostMediationError(adError.code))),
                             )
                         }
 
@@ -552,7 +573,7 @@ class AdMobAdapter : PartnerAdapter {
                             resumeOnce(
                                 Result.failure(
                                     ChartboostMediationAdException(
-                                        getHeliumError(
+                                        getChartboostMediationError(
                                             loadAdError.code,
                                         ),
                                     ),
@@ -612,7 +633,7 @@ class AdMobAdapter : PartnerAdapter {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             resumeOnce(
                                 Result.failure(
-                                    ChartboostMediationAdException(getHeliumError(loadAdError.code)),
+                                    ChartboostMediationAdException(getChartboostMediationError(loadAdError.code)),
                                 ),
                             )
                         }
@@ -669,7 +690,7 @@ class AdMobAdapter : PartnerAdapter {
                             PartnerLogController.log(LOAD_FAILED, loadAdError.message)
                             resumeOnce(
                                 Result.failure(
-                                    ChartboostMediationAdException(getHeliumError(loadAdError.code)),
+                                    ChartboostMediationAdException(getChartboostMediationError(loadAdError.code)),
                                 ),
                             )
                         }
@@ -731,52 +752,11 @@ class AdMobAdapter : PartnerAdapter {
                     val interstitial = ad as InterstitialAd
 
                     interstitial.fullScreenContentCallback =
-                        object : FullScreenContentCallback() {
-                            override fun onAdImpression() {
-                                PartnerLogController.log(DID_TRACK_IMPRESSION)
-                                listener?.onPartnerAdImpression(partnerAd)
-                                    ?: PartnerLogController.log(
-                                        CUSTOM,
-                                        "Unable to fire onPartnerAdImpression for AdMob adapter.",
-                                    )
-                            }
-
-                            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                                PartnerLogController.log(SHOW_FAILED, adError.message)
-                                resumeOnce(
-                                    Result.failure(
-                                        ChartboostMediationAdException(
-                                            getHeliumError(
-                                                adError.code,
-                                            ),
-                                        ),
-                                    ),
-                                )
-                            }
-
-                            override fun onAdShowedFullScreenContent() {
-                                PartnerLogController.log(SHOW_SUCCEEDED)
-                                resumeOnce(Result.success(partnerAd))
-                            }
-
-                            override fun onAdClicked() {
-                                PartnerLogController.log(DID_CLICK)
-                                listener?.onPartnerAdClicked(partnerAd)
-                                    ?: PartnerLogController.log(
-                                        CUSTOM,
-                                        "Unable to fire onPartnerAdClicked for AdMob adapter.",
-                                    )
-                            }
-
-                            override fun onAdDismissedFullScreenContent() {
-                                PartnerLogController.log(DID_DISMISS)
-                                listener?.onPartnerAdDismissed(partnerAd, null)
-                                    ?: PartnerLogController.log(
-                                        CUSTOM,
-                                        "Unable to fire onPartnerAdDismissed for AdMob adapter.",
-                                    )
-                            }
-                        }
+                        InterstitialAdShowCallback(
+                            listener,
+                            partnerAd,
+                            WeakReference(continuation),
+                        )
                     interstitial.show(context)
                 }
             } ?: run {
@@ -823,45 +803,11 @@ class AdMobAdapter : PartnerAdapter {
                     val rewardedAd = ad as RewardedAd
 
                     rewardedAd.fullScreenContentCallback =
-                        object : FullScreenContentCallback() {
-                            override fun onAdImpression() {
-                                PartnerLogController.log(DID_TRACK_IMPRESSION)
-                                listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
-                                    CUSTOM,
-                                    "Unable to fire onPartnerAdImpression for AdMob adapter.",
-                                )
-                            }
-
-                            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                                PartnerLogController.log(SHOW_FAILED, adError.message)
-                                resumeOnce(
-                                    Result.failure(ChartboostMediationAdException(getHeliumError(adError.code))),
-                                )
-                            }
-
-                            override fun onAdShowedFullScreenContent() {
-                                PartnerLogController.log(SHOW_SUCCEEDED)
-                                resumeOnce(Result.success(partnerAd))
-                            }
-
-                            override fun onAdClicked() {
-                                PartnerLogController.log(DID_CLICK)
-                                listener?.onPartnerAdClicked(partnerAd)
-                                    ?: PartnerLogController.log(
-                                        CUSTOM,
-                                        "Unable to fire onPartnerAdClicked for AdMob adapter.",
-                                    )
-                            }
-
-                            override fun onAdDismissedFullScreenContent() {
-                                PartnerLogController.log(DID_DISMISS)
-                                listener?.onPartnerAdDismissed(partnerAd, null)
-                                    ?: PartnerLogController.log(
-                                        CUSTOM,
-                                        "Unable to fire onPartnerAdDismissed for AdMob adapter.",
-                                    )
-                            }
-                        }
+                        RewardedAdShowCallback(
+                            listener,
+                            partnerAd,
+                            WeakReference(continuation),
+                        )
 
                     rewardedAd.show(context) {
                         PartnerLogController.log(DID_REWARD)
@@ -916,52 +862,11 @@ class AdMobAdapter : PartnerAdapter {
                     val rewardedInterstitialAd = ad as RewardedInterstitialAd
 
                     rewardedInterstitialAd.fullScreenContentCallback =
-                        object : FullScreenContentCallback() {
-                            override fun onAdImpression() {
-                                PartnerLogController.log(DID_TRACK_IMPRESSION)
-                                listener?.onPartnerAdImpression(partnerAd)
-                                    ?: PartnerLogController.log(
-                                        CUSTOM,
-                                        "Unable to fire onPartnerAdImpression for AdMob adapter.",
-                                    )
-                            }
-
-                            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                                PartnerLogController.log(SHOW_FAILED, adError.message)
-                                resumeOnce(
-                                    Result.failure(
-                                        ChartboostMediationAdException(
-                                            getHeliumError(
-                                                adError.code,
-                                            ),
-                                        ),
-                                    ),
-                                )
-                            }
-
-                            override fun onAdShowedFullScreenContent() {
-                                PartnerLogController.log(SHOW_SUCCEEDED)
-                                resumeOnce(Result.success(partnerAd))
-                            }
-
-                            override fun onAdClicked() {
-                                PartnerLogController.log(DID_CLICK)
-                                listener?.onPartnerAdClicked(partnerAd)
-                                    ?: PartnerLogController.log(
-                                        CUSTOM,
-                                        "Unable to fire onPartnerAdClicked for AdMob adapter.",
-                                    )
-                            }
-
-                            override fun onAdDismissedFullScreenContent() {
-                                PartnerLogController.log(DID_DISMISS)
-                                listener?.onPartnerAdDismissed(partnerAd, null)
-                                    ?: PartnerLogController.log(
-                                        CUSTOM,
-                                        "Unable to fire onPartnerAdDismissed for AdMob adapter.",
-                                    )
-                            }
-                        }
+                        RewardedInterstitialAdShowCallback(
+                            listener,
+                            partnerAd,
+                            WeakReference(continuation),
+                        )
 
                     rewardedInterstitialAd.show(context) {
                         PartnerLogController.log(DID_REWARD)
@@ -1066,22 +971,212 @@ class AdMobAdapter : PartnerAdapter {
     private fun getIsHybridSetup(settings: Map<String, String>): Boolean {
         return settings[IS_HYBRID_SETUP]?.toBoolean() ?: false
     }
+}
 
-    /**
-     * Convert a given AdMob error code into a [ChartboostMediationError].
-     *
-     * @param error The AdMob error code as an [Int].
-     *
-     * @return The corresponding [ChartboostMediationError].
-     */
-    private fun getHeliumError(error: Int) =
-        when (error) {
-            AdRequest.ERROR_CODE_APP_ID_MISSING -> ChartboostMediationError.CM_LOAD_FAILURE_PARTNER_NOT_INITIALIZED
-            AdRequest.ERROR_CODE_INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
-            AdRequest.ERROR_CODE_INVALID_AD_STRING -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_MARKUP
-            AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
-            AdRequest.ERROR_CODE_NETWORK_ERROR -> ChartboostMediationError.CM_NO_CONNECTIVITY
-            AdRequest.ERROR_CODE_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-            else -> ChartboostMediationError.CM_PARTNER_ERROR
-        }
+/**
+ * Callback class for interstitial ads.
+ *
+ * @param listener A [PartnerAdListener] to be notified of ad events.
+ * @param partnerAd A [PartnerAd] object containing the AdMob ad to be shown.
+ * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
+ */
+private class InterstitialAdShowCallback(
+    private val listener: PartnerAdListener?,
+    private val partnerAd: PartnerAd,
+    private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
+) : FullScreenContentCallback() {
+    override fun onAdImpression() {
+        PartnerLogController.log(DID_TRACK_IMPRESSION)
+        listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
+        )
+    }
+
+    override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+        PartnerLogController.log(SHOW_FAILED, adError.message)
+        continuationRef.get()?.let {
+            if (it.isActive) {
+                it.resume(
+                    Result.failure(
+                        ChartboostMediationAdException(
+                            getChartboostMediationError(adError.code),
+                        ),
+                    ),
+                )
+            }
+        } ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to resume continuation in onAdFailedToShowFullScreenContent(). Continuation is null.",
+        )
+    }
+
+    override fun onAdShowedFullScreenContent() {
+        PartnerLogController.log(SHOW_SUCCEEDED)
+
+        continuationRef.get()?.let { continuation ->
+            if (continuation.isActive) {
+                continuation.resume(Result.success(partnerAd))
+            }
+        } ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
+        )
+    }
+
+    override fun onAdClicked() {
+        PartnerLogController.log(DID_CLICK)
+        listener?.onPartnerAdClicked(partnerAd) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
+        )
+    }
+
+    override fun onAdDismissedFullScreenContent() {
+        PartnerLogController.log(DID_DISMISS)
+        listener?.onPartnerAdDismissed(partnerAd, null) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
+        )
+    }
+}
+
+/**
+ * Callback class for rewarded ads.
+ *
+ * @param listener A [PartnerAdListener] to be notified of ad events.
+ * @param partnerAd A [PartnerAd] object containing the AdMob ad to be shown.
+ * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
+ */
+private class RewardedAdShowCallback(
+    private val listener: PartnerAdListener?,
+    private val partnerAd: PartnerAd,
+    private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
+) : FullScreenContentCallback() {
+    override fun onAdImpression() {
+        PartnerLogController.log(DID_TRACK_IMPRESSION)
+
+        listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
+        )
+    }
+
+    override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+        PartnerLogController.log(SHOW_FAILED, adError.message)
+        continuationRef.get()?.let {
+            if (it.isActive) {
+                it.resume(
+                    Result.failure(
+                        ChartboostMediationAdException(
+                            getChartboostMediationError(adError.code),
+                        ),
+                    ),
+                )
+            }
+        } ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to resume continuation in onAdFailedToShowFullScreenContent(). Continuation is null.",
+        )
+    }
+
+    override fun onAdShowedFullScreenContent() {
+        PartnerLogController.log(SHOW_SUCCEEDED)
+
+        continuationRef.get()?.let { continuation ->
+            if (continuation.isActive) {
+                continuation.resume(Result.success(partnerAd))
+            }
+        } ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
+        )
+    }
+
+    override fun onAdClicked() {
+        PartnerLogController.log(DID_CLICK)
+
+        listener?.onPartnerAdClicked(partnerAd) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
+        )
+    }
+
+    override fun onAdDismissedFullScreenContent() {
+        PartnerLogController.log(DID_DISMISS)
+
+        listener?.onPartnerAdDismissed(partnerAd, null) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
+        )
+    }
+}
+
+/**
+ * Callback class for rewarded interstitial ads.
+ *
+ * @param listener A [PartnerAdListener] to be notified of ad events.
+ * @param partnerAd A [PartnerAd] object containing the AdMob ad to be shown.
+ * @param continuationRef A [WeakReference] to the [CancellableContinuation] to be resumed once the ad is shown.
+ */
+private class RewardedInterstitialAdShowCallback(
+    private val listener: PartnerAdListener?,
+    private val partnerAd: PartnerAd,
+    private val continuationRef: WeakReference<CancellableContinuation<Result<PartnerAd>>>,
+) : FullScreenContentCallback() {
+    override fun onAdImpression() {
+        PartnerLogController.log(DID_TRACK_IMPRESSION)
+        listener?.onPartnerAdImpression(partnerAd) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdImpression for AdMob adapter. Listener is null",
+        )
+    }
+
+    override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+        PartnerLogController.log(SHOW_FAILED, adError.message)
+        continuationRef.get()?.let {
+            if (it.isActive) {
+                it.resume(
+                    Result.failure(
+                        ChartboostMediationAdException(
+                            getChartboostMediationError(adError.code),
+                        ),
+                    ),
+                )
+            }
+        } ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to resume continuation in onAdFailedToShowFullScreenContent(). Continuation is null.",
+        )
+    }
+
+    override fun onAdShowedFullScreenContent() {
+        PartnerLogController.log(SHOW_SUCCEEDED)
+        continuationRef.get()?.let { continuation ->
+            if (continuation.isActive) {
+                continuation.resume(Result.success(partnerAd))
+            }
+        } ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to resume continuation in onAdShowedFullScreenContent(). Continuation is null.",
+        )
+    }
+
+    override fun onAdClicked() {
+        PartnerLogController.log(DID_CLICK)
+
+        listener?.onPartnerAdClicked(partnerAd) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdClicked for AdMob adapter. Listener is null",
+        )
+    }
+
+    override fun onAdDismissedFullScreenContent() {
+        PartnerLogController.log(DID_DISMISS)
+
+        listener?.onPartnerAdDismissed(partnerAd, null) ?: PartnerLogController.log(
+            CUSTOM,
+            "Unable to fire onPartnerAdDismissed for AdMob adapter. Listener is null",
+        )
+    }
 }

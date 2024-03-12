@@ -1,0 +1,23 @@
+name: Create Release Branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      adapter_version:
+        description: 'Adapter version (e.g. ''4.9.2.0.0'')'
+        required: true
+      partner_version:
+        description: 'Partner version (e.g. ''~> 9.2.0'')'
+        required: true
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUBSERVICETOKEN }}
+          repository: ChartBoost/chartboost-mediation-android-actions
+          event-type: update-versions
+          client-payload: '{"adapter_version": "${{ github.event.inputs.adapter_version }}", "partner_version": "${{ github.event.inputs.partner_version }}", "repository": "${{ github.repository }}", "token": "${{ secrets.GITHUBSERVICETOKEN }}"}'

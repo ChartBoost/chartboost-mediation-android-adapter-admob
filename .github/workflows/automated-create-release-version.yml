@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       adapter_version:
-        description: 'Adapter version (e.g. ''4.9.2.0.0'')'
+        description: 'Adapter version (e.g. 4.9.2.0.0)'
         required: true
       partner_version:
-        description: 'Partner version (e.g. ''~> 9.2.0'')'
+        description: 'Partner version (e.g. 9.2.0)'
         required: true
 
 jobs:

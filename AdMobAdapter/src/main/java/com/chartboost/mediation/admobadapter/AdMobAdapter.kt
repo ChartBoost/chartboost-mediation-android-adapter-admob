@@ -37,35 +37,8 @@ import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
 
-class AdMobAdapter : PartnerAdapter {
+class AdMobAdapter() : PartnerAdapter {
     companion object {
-        /**
-         * List containing device IDs to be set for enabling AdMob test ads. It can be populated at
-         * any time and will take effect for the next ad request. Remember to empty this list or
-         * stop setting it before releasing your app.
-         */
-        public var testDeviceIds = listOf<String>()
-            set(value) {
-                field = value
-                PartnerLogController.log(
-                    CUSTOM,
-                    "AdMob test device ID(s) to be set: ${
-                        if (value.isEmpty()) {
-                            "none"
-                        } else {
-                            value.joinToString()
-                        }
-                    }",
-                )
-
-                // There have been known ANRs when calling setRequestConfiguration() on the main thread.
-                CoroutineScope(IO).launch {
-                    MobileAds.setRequestConfiguration(
-                        RequestConfiguration.Builder().setTestDeviceIds(value).build(),
-                    )
-                }
-            }
-
         /**
          * Convert a given AdMob error code into a [ChartboostMediationError].
          *
@@ -91,6 +64,11 @@ class AdMobAdapter : PartnerAdapter {
     }
 
     /**
+     * The AdMob adapter configuration.
+     */
+    override var configuration: PartnerAdapterConfiguration = AdMobAdapterConfiguration
+
+    /**
      * A map of Chartboost Mediation's listeners for the corresponding load identifier.
      */
     private val listeners = mutableMapOf<String, PartnerAdListener>()
@@ -109,41 +87,6 @@ class AdMobAdapter : PartnerAdapter {
      * Indicate whether the user has given consent per CCPA.
      */
     private var ccpaPrivacyString: String? = null
-
-    /**
-     * Get the Google Mobile Ads SDK version.
-     *
-     * Note that the version string will be in the format of afma-sdk-a-v221908999.214106000.1.
-     */
-    override val partnerSdkVersion: String
-        get() = MobileAds.getVersion().toString()
-
-    /**
-     * Get the AdMob adapter version.
-     *
-     * You may version the adapter using any preferred convention, but it is recommended to apply the
-     * following format if the adapter will be published by Chartboost Mediation:
-     *
-     * Chartboost Mediation.Partner.Adapter
-     *
-     * "Chartboost Mediation" represents the Chartboost Mediation SDK’s major version that is compatible with this adapter. This must be 1 digit.
-     * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
-     * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
-     */
-    override val adapterVersion: String
-        get() = BuildConfig.CHARTBOOST_MEDIATION_ADMOB_ADAPTER_VERSION
-
-    /**
-     * Get the partner name for internal uses.
-     */
-    override val partnerId: String
-        get() = "admob"
-
-    /**
-     * Get the partner name for external uses.
-     */
-    override val partnerDisplayName: String
-        get() = "AdMob"
 
     /**
      * Initialize the Google Mobile Ads SDK so that it is ready to request ads.

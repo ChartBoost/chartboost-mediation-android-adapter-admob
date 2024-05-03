@@ -37,7 +37,7 @@ import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
 import kotlin.coroutines.resume
 
-class AdMobAdapter() : PartnerAdapter {
+class AdMobAdapter : PartnerAdapter {
     companion object {
         /**
          * Convert a given AdMob error code into a [ChartboostMediationError].

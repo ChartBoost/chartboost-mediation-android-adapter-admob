@@ -100,8 +100,6 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<Unit> {
         PartnerLogController.log(SETUP_STARTED)
 
-        throw ChartboostMediationAdException(ChartboostMediationError.InitializationError.Aborted)
-
         withContext(IO) {
             // Since Chartboost Mediation is the mediator, no need to initialize AdMob's partner SDKs.
             // https://developers.google.com/android/reference/com/google/android/gms/ads/MobileAds?hl=en#disableMediationAdapterInitialization(android.content.Context)

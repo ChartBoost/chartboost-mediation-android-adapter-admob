@@ -48,13 +48,13 @@ class AdMobAdapter : PartnerAdapter {
          */
         internal fun getChartboostMediationError(error: Int) =
             when (error) {
-                AdRequest.ERROR_CODE_APP_ID_MISSING -> ChartboostMediationError.CM_LOAD_FAILURE_PARTNER_NOT_INITIALIZED
-                AdRequest.ERROR_CODE_INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
-                AdRequest.ERROR_CODE_INVALID_AD_STRING -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_MARKUP
-                AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
-                AdRequest.ERROR_CODE_NETWORK_ERROR -> ChartboostMediationError.CM_NO_CONNECTIVITY
-                AdRequest.ERROR_CODE_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-                else -> ChartboostMediationError.CM_PARTNER_ERROR
+                AdRequest.ERROR_CODE_APP_ID_MISSING -> ChartboostMediationError.LoadError.PartnerNotInitialized
+                AdRequest.ERROR_CODE_INTERNAL_ERROR -> ChartboostMediationError.OtherError.InternalError
+                AdRequest.ERROR_CODE_INVALID_AD_STRING -> ChartboostMediationError.LoadError.InvalidAdMarkup
+                AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> ChartboostMediationError.LoadError.InvalidAdRequest
+                AdRequest.ERROR_CODE_NETWORK_ERROR -> ChartboostMediationError.OtherError.NoConnectivity
+                AdRequest.ERROR_CODE_NO_FILL -> ChartboostMediationError.LoadError.NoFill
+                else -> ChartboostMediationError.OtherError.PartnerError
             }
 
         /**
@@ -271,7 +271,7 @@ class AdMobAdapter : PartnerAdapter {
                     )
                 } else {
                     PartnerLogController.log(LOAD_FAILED)
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.UnsupportedAdFormat))
                 }
             }
         }
@@ -301,7 +301,7 @@ class AdMobAdapter : PartnerAdapter {
                     showRewardedInterstitialAd(activity, partnerAd, listener)
                 } else {
                     PartnerLogController.log(SHOW_FAILED)
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
+                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.UnsupportedAdFormat))
                 }
             }
         }
@@ -344,11 +344,11 @@ class AdMobAdapter : PartnerAdapter {
                     SETUP_FAILED,
                     "Initialization state: ${it.initializationState}. Description: ${it.description}",
                 )
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown))
             }
         } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Initialization status is null.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown))
         }
     }
 
@@ -658,7 +658,7 @@ class AdMobAdapter : PartnerAdapter {
             Result.success(partnerAd)
         } ?: run {
             PartnerLogController.log(SHOW_FAILED, "Banner ad is null.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotFound))
         }
     }
 
@@ -700,7 +700,7 @@ class AdMobAdapter : PartnerAdapter {
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                            ChartboostMediationError.ShowError.AdNotFound,
                         ),
                     ),
                 )
@@ -754,7 +754,7 @@ class AdMobAdapter : PartnerAdapter {
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                            ChartboostMediationError.ShowError.AdNotFound,
                         ),
                     ),
                 )
@@ -808,7 +808,7 @@ class AdMobAdapter : PartnerAdapter {
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                            ChartboostMediationError.ShowError.AdNotFound,
                         ),
                     ),
                 )
@@ -833,11 +833,11 @@ class AdMobAdapter : PartnerAdapter {
                 Result.success(partnerAd)
             } else {
                 PartnerLogController.log(INVALIDATE_FAILED, "Ad is not an AdView.")
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_WRONG_RESOURCE_TYPE))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.InvalidateError.WrongResourceType))
             }
         } ?: run {
             PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_AD_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.InvalidateError.AdNotFound))
         }
     }
 

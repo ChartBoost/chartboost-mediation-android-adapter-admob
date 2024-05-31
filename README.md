@@ -5,15 +5,15 @@ The Chartboost Mediation AdMob adapter mediates AdMob via the Chartboost Mediati
 ## Minimum Requirements
 
 | Plugin                   | Version |
-| ------------------------ | ------- |
-| Chartboost Mediation SDK | 4.0.0+  |
+| ------------------------ |---------|
+| Chartboost Mediation SDK | 5.0.0+  |
 | Android API              | 21+     |
 
 ## Integration
 
 In your `build.gradle`, add the following entry:
 ```
-    implementation "com.chartboost:chartboost-mediation-adapter-admob:4.22.3.0.6"
+    implementation "com.chartboost:chartboost-mediation-adapter-admob:5.22.3.0.0"
 ```
 
 ## Contributions

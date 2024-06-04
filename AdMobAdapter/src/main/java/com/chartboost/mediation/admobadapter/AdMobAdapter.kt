@@ -272,7 +272,7 @@ class AdMobAdapter : PartnerAdapter {
     override fun setConsents(
         context: Context,
         consents: Map<ConsentKey, ConsentValue>,
-        modifiedKeys: Set<ConsentKey>
+        modifiedKeys: Set<ConsentKey>,
     ) {
         // AdMob reads the TCF String directly.
     }
@@ -817,7 +817,6 @@ class AdMobAdapter : PartnerAdapter {
             .addNetworkExtrasBundle(AdMobAdapter::class.java, extras)
             .build()
     }
-
 
     /**
      * Parse partner-specific settings for whether this waterfall is a hybrid setup.

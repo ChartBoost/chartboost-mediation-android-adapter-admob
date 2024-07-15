@@ -37,7 +37,9 @@ import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerA
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_NOT_UNDERAGE
 import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_UNDERAGE
 import com.chartboost.core.consent.ConsentKey
+import com.chartboost.core.consent.ConsentKeys
 import com.chartboost.core.consent.ConsentValue
+import com.chartboost.core.consent.ConsentValues
 import com.chartboost.mediation.admobadapter.AdMobAdapter.Companion.getChartboostMediationError
 import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.android.gms.ads.*
@@ -89,6 +91,21 @@ class AdMobAdapter : PartnerAdapter {
      * A map of Chartboost Mediation's listeners for the corresponding load identifier.
      */
     private val listeners = mutableMapOf<String, PartnerAdListener>()
+
+    /**
+     * Indicates whether the user has consented to allowing personalized ads when GDPR applies.
+     */
+    private var allowPersonalizedAds = true
+
+    /**
+     * Indicate whether the user has given consent per CCPA.
+     */
+    private var ccpaPrivacyString: String? = null
+
+    /**
+     * Indicates whether the user has restricted their data for advertising use.
+     */
+    private var restrictedDataProcessingEnabled = false
 
     /**
      * Initialize the Google Mobile Ads SDK so that it is ready to request ads.
@@ -272,7 +289,47 @@ class AdMobAdapter : PartnerAdapter {
         consents: Map<ConsentKey, ConsentValue>,
         modifiedKeys: Set<ConsentKey>,
     ) {
-        // AdMob reads the TCF String directly.
+        val consent = consents[configuration.partnerId]?.takeIf { it.isNotBlank() }
+            ?: consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.takeIf { it.isNotBlank() }
+        consent?.let {
+            when(it) {
+                ConsentValues.GRANTED -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_GRANTED)
+                    allowPersonalizedAds = true
+                }
+
+                ConsentValues.DENIED -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_DENIED)
+                    allowPersonalizedAds = false
+                }
+
+                else -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_UNKNOWN)
+                }
+            }
+        }
+
+        consents[ConsentKeys.USP]?.let {
+            ccpaPrivacyString = it
+        }
+
+        consents[ConsentKeys.CCPA_OPT_IN]?.let {
+            when(it) {
+                ConsentValues.GRANTED -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.USP_CONSENT_GRANTED)
+                    restrictedDataProcessingEnabled = true
+                }
+
+                ConsentValues.DENIED -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.USP_CONSENT_DENIED)
+                    restrictedDataProcessingEnabled = false
+                }
+
+                else -> {
+                    PartnerLogController.log(CUSTOM, "Unable to set RDP since CCPA_OPT_IN is $it")
+                }
+            }
+        }
     }
 
     /**
@@ -810,6 +867,18 @@ class AdMobAdapter : PartnerAdapter {
         }
 
         extras.putString("platform_name", "chartboost")
+
+        if (!allowPersonalizedAds) {
+            extras.putString("npa", "1")
+        }
+
+        if (restrictedDataProcessingEnabled) {
+            extras.putInt("rdp", 1)
+        }
+
+        ccpaPrivacyString?.takeIf { it.isNotBlank() }.let {
+            extras.putString("IABUSPrivacy_String", ccpaPrivacyString)
+        }
 
         return AdRequest.Builder()
             .addNetworkExtrasBundle(AdMobAdapter::class.java, extras)

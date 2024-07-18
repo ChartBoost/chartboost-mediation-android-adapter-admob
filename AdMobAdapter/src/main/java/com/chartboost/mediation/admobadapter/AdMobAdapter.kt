@@ -41,6 +41,7 @@ import com.chartboost.core.consent.ConsentKeys
 import com.chartboost.core.consent.ConsentValue
 import com.chartboost.core.consent.ConsentValues
 import com.chartboost.mediation.admobadapter.AdMobAdapter.Companion.getChartboostMediationError
+import com.chartboost.chartboostmediationsdk.domain.BannerTypes
 import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.android.gms.ads.*
 import com.google.android.gms.ads.initialization.AdapterStatus
@@ -413,7 +414,17 @@ class AdMobAdapter : PartnerAdapter {
 
                         override fun onAdLoaded() {
                             PartnerLogController.log(LOAD_SUCCEEDED)
-                            resumeOnce(Result.success(partnerAd))
+                            resumeOnce(Result.success(
+                                PartnerAd(
+                                    ad = adview,
+                                    details = details,
+                                    request = request,
+                                    partnerBannerSize = PartnerBannerSize(
+                                        Size(adSize.width, adSize.height),
+                                        request.bannerSize?.type ?: BannerTypes.BANNER,
+                                    )
+                                )
+                            ))
                         }
 
                         override fun onAdFailedToLoad(adError: LoadAdError) {

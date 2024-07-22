@@ -42,7 +42,6 @@ import com.chartboost.core.consent.ConsentKeys
 import com.chartboost.core.consent.ConsentValue
 import com.chartboost.core.consent.ConsentValues
 import com.chartboost.mediation.admobadapter.AdMobAdapter.Companion.getChartboostMediationError
-import com.chartboost.chartboostmediationsdk.domain.BannerTypes
 import com.google.ads.mediation.admob.AdMobAdapter
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdListener
@@ -438,7 +437,11 @@ class AdMobAdapter : PartnerAdapter {
                                     request = request,
                                     partnerBannerSize = PartnerBannerSize(
                                         Size(adSize.width, adSize.height),
-                                        request.bannerSize?.type ?: BannerTypes.BANNER,
+                                        if (request.bannerSize?.isAdaptive == true) {
+                                            BannerTypes.ADAPTIVE_BANNER
+                                        } else {
+                                            BannerTypes.BANNER
+                                        },
                                     )
                                 )
                             ))

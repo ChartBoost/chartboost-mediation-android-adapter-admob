@@ -1,6 +1,6 @@
 /*
  * Copyright 2023-2024 Chartboost, Inc.
- * 
+ *
  * Use of this source code is governed by an MIT-style
  * license that can be found in the LICENSE file.
  */
@@ -13,13 +13,45 @@ import android.os.Bundle
 import android.util.Size
 import android.view.View.GONE
 import android.view.View.VISIBLE
-import com.chartboost.heliumsdk.domain.*
-import com.chartboost.heliumsdk.domain.AdFormat
-import com.chartboost.heliumsdk.utils.PartnerLogController
-import com.chartboost.heliumsdk.utils.PartnerLogController.PartnerAdapterEvents.*
+import com.chartboost.chartboostmediationsdk.ad.ChartboostMediationBannerAdView.ChartboostMediationBannerSize.Companion.asSize
+import com.chartboost.chartboostmediationsdk.domain.*
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.BIDDER_INFO_FETCH_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.CUSTOM
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_CLICK
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_DISMISS
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_REWARD
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.DID_TRACK_IMPRESSION
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.INVALIDATE_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.LOAD_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SETUP_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_FAILED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_STARTED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.SHOW_SUCCEEDED
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_NOT_UNDERAGE
+import com.chartboost.chartboostmediationsdk.utils.PartnerLogController.PartnerAdapterEvents.USER_IS_UNDERAGE
+import com.chartboost.core.consent.ConsentKey
+import com.chartboost.core.consent.ConsentKeys
+import com.chartboost.core.consent.ConsentValue
+import com.chartboost.core.consent.ConsentValues
 import com.chartboost.mediation.admobadapter.AdMobAdapter.Companion.getChartboostMediationError
 import com.google.ads.mediation.admob.AdMobAdapter
-import com.google.android.gms.ads.*
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.RequestConfiguration
 import com.google.android.gms.ads.initialization.AdapterStatus
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
@@ -40,33 +72,6 @@ import kotlin.coroutines.resume
 class AdMobAdapter : PartnerAdapter {
     companion object {
         /**
-         * List containing device IDs to be set for enabling AdMob test ads. It can be populated at
-         * any time and will take effect for the next ad request. Remember to empty this list or
-         * stop setting it before releasing your app.
-         */
-        public var testDeviceIds = listOf<String>()
-            set(value) {
-                field = value
-                PartnerLogController.log(
-                    CUSTOM,
-                    "AdMob test device ID(s) to be set: ${
-                        if (value.isEmpty()) {
-                            "none"
-                        } else {
-                            value.joinToString()
-                        }
-                    }",
-                )
-
-                // There have been known ANRs when calling setRequestConfiguration() on the main thread.
-                CoroutineScope(IO).launch {
-                    MobileAds.setRequestConfiguration(
-                        RequestConfiguration.Builder().setTestDeviceIds(value).build(),
-                    )
-                }
-            }
-
-        /**
          * Convert a given AdMob error code into a [ChartboostMediationError].
          *
          * @param error The AdMob error code as an [Int].
@@ -75,13 +80,13 @@ class AdMobAdapter : PartnerAdapter {
          */
         internal fun getChartboostMediationError(error: Int) =
             when (error) {
-                AdRequest.ERROR_CODE_APP_ID_MISSING -> ChartboostMediationError.CM_LOAD_FAILURE_PARTNER_NOT_INITIALIZED
-                AdRequest.ERROR_CODE_INTERNAL_ERROR -> ChartboostMediationError.CM_INTERNAL_ERROR
-                AdRequest.ERROR_CODE_INVALID_AD_STRING -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_MARKUP
-                AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> ChartboostMediationError.CM_LOAD_FAILURE_INVALID_AD_REQUEST
-                AdRequest.ERROR_CODE_NETWORK_ERROR -> ChartboostMediationError.CM_NO_CONNECTIVITY
-                AdRequest.ERROR_CODE_NO_FILL -> ChartboostMediationError.CM_LOAD_FAILURE_NO_FILL
-                else -> ChartboostMediationError.CM_PARTNER_ERROR
+                AdRequest.ERROR_CODE_APP_ID_MISSING -> ChartboostMediationError.LoadError.PartnerNotInitialized
+                AdRequest.ERROR_CODE_INTERNAL_ERROR -> ChartboostMediationError.OtherError.InternalError
+                AdRequest.ERROR_CODE_INVALID_AD_STRING -> ChartboostMediationError.LoadError.InvalidAdMarkup
+                AdRequest.ERROR_CODE_INVALID_REQUEST, AdRequest.ERROR_CODE_REQUEST_ID_MISMATCH -> ChartboostMediationError.LoadError.InvalidAdRequest
+                AdRequest.ERROR_CODE_NETWORK_ERROR -> ChartboostMediationError.OtherError.NoConnectivity
+                AdRequest.ERROR_CODE_NO_FILL -> ChartboostMediationError.LoadError.NoFill
+                else -> ChartboostMediationError.OtherError.PartnerError
             }
 
         /**
@@ -91,19 +96,19 @@ class AdMobAdapter : PartnerAdapter {
     }
 
     /**
+     * The AdMob adapter configuration.
+     */
+    override var configuration: PartnerAdapterConfiguration = AdMobAdapterConfiguration
+
+    /**
      * A map of Chartboost Mediation's listeners for the corresponding load identifier.
      */
     private val listeners = mutableMapOf<String, PartnerAdListener>()
 
     /**
-     * Indicate whether GDPR currently applies to the user.
+     * Indicates whether the user has consented to allowing personalized ads when GDPR applies.
      */
-    private var gdprApplies: Boolean? = null
-
-    /**
-     * Indicate whether the user has consented to allowing personalized ads when GDPR applies.
-     */
-    private var allowPersonalizedAds = false
+    private var allowPersonalizedAds = true
 
     /**
      * Indicate whether the user has given consent per CCPA.
@@ -111,39 +116,9 @@ class AdMobAdapter : PartnerAdapter {
     private var ccpaPrivacyString: String? = null
 
     /**
-     * Get the Google Mobile Ads SDK version.
-     *
-     * Note that the version string will be in the format of afma-sdk-a-v221908999.214106000.1.
+     * Indicates whether the user has restricted their data for advertising use.
      */
-    override val partnerSdkVersion: String
-        get() = MobileAds.getVersion().toString()
-
-    /**
-     * Get the AdMob adapter version.
-     *
-     * You may version the adapter using any preferred convention, but it is recommended to apply the
-     * following format if the adapter will be published by Chartboost Mediation:
-     *
-     * Chartboost Mediation.Partner.Adapter
-     *
-     * "Chartboost Mediation" represents the Chartboost Mediation SDK’s major version that is compatible with this adapter. This must be 1 digit.
-     * "Partner" represents the partner SDK’s major.minor.patch.x (where x is optional) version that is compatible with this adapter. This can be 3-4 digits.
-     * "Adapter" represents this adapter’s version (starting with 0), which resets to 0 when the partner SDK’s version changes. This must be 1 digit.
-     */
-    override val adapterVersion: String
-        get() = BuildConfig.CHARTBOOST_MEDIATION_ADMOB_ADAPTER_VERSION
-
-    /**
-     * Get the partner name for internal uses.
-     */
-    override val partnerId: String
-        get() = "admob"
-
-    /**
-     * Get the partner name for external uses.
-     */
-    override val partnerDisplayName: String
-        get() = "AdMob"
+    private var restrictedDataProcessingEnabled = false
 
     /**
      * Initialize the Google Mobile Ads SDK so that it is ready to request ads.
@@ -154,17 +129,17 @@ class AdMobAdapter : PartnerAdapter {
     override suspend fun setUp(
         context: Context,
         partnerConfiguration: PartnerConfiguration,
-    ): Result<Unit> = withContext(IO) {
+    ): Result<Map<String, Any>> = withContext(IO) {
         PartnerLogController.log(SETUP_STARTED)
 
-            // Since Chartboost Mediation is the mediator, no need to initialize AdMob's partner SDKs.
-            // https://developers.google.com/android/reference/com/google/android/gms/ads/MobileAds?hl=en#disableMediationAdapterInitialization(android.content.Context)
-            //
-            // There have been known ANRs when calling disableMediationAdapterInitialization() on the main thread.
-            MobileAds.disableMediationAdapterInitialization(context)
+        // Since Chartboost Mediation is the mediator, no need to initialize AdMob's partner SDKs.
+        // https://developers.google.com/android/reference/com/google/android/gms/ads/MobileAds?hl=en#disableMediationAdapterInitialization(android.content.Context)
+        //
+        // There have been known ANRs when calling disableMediationAdapterInitialization() on the main thread.
+        MobileAds.disableMediationAdapterInitialization(context)
 
-        return@withContext suspendCancellableCoroutine { continuation ->
-            fun resumeOnce(result: Result<Unit>) {
+        suspendCancellableCoroutine { continuation ->
+            fun resumeOnce(result: Result<Map<String, Any>>) {
                 if (continuation.isActive) {
                     continuation.resume(result)
                 }
@@ -177,78 +152,20 @@ class AdMobAdapter : PartnerAdapter {
     }
 
     /**
-     * Notify the Google Mobile Ads SDK of the GDPR applicability and consent status.
-     *
-     * @param context The current [Context].
-     * @param applies True if GDPR applies, false otherwise.
-     * @param gdprConsentStatus The user's GDPR consent status.
-     */
-    override fun setGdpr(
-        context: Context,
-        applies: Boolean?,
-        gdprConsentStatus: GdprConsentStatus,
-    ) {
-        PartnerLogController.log(
-            when (applies) {
-                true -> GDPR_APPLICABLE
-                false -> GDPR_NOT_APPLICABLE
-                else -> GDPR_UNKNOWN
-            },
-        )
-
-        PartnerLogController.log(
-            when (gdprConsentStatus) {
-                GdprConsentStatus.GDPR_CONSENT_UNKNOWN -> GDPR_CONSENT_UNKNOWN
-                GdprConsentStatus.GDPR_CONSENT_GRANTED -> GDPR_CONSENT_GRANTED
-                GdprConsentStatus.GDPR_CONSENT_DENIED -> GDPR_CONSENT_DENIED
-            },
-        )
-
-        this.gdprApplies = applies
-
-        if (applies == true) {
-            allowPersonalizedAds = gdprConsentStatus == GdprConsentStatus.GDPR_CONSENT_GRANTED
-        }
-    }
-
-    /**
-     * Save the current CCPA privacy String to be used later.
-     *
-     * @param context The current [Context].
-     * @param hasGrantedCcpaConsent True if the user has granted CCPA consent, false otherwise.
-     * @param privacyString The CCPA privacy String.
-     */
-    override fun setCcpaConsent(
-        context: Context,
-        hasGrantedCcpaConsent: Boolean,
-        privacyString: String,
-    ) {
-        PartnerLogController.log(
-            if (hasGrantedCcpaConsent) {
-                CCPA_CONSENT_GRANTED
-            } else {
-                CCPA_CONSENT_DENIED
-            },
-        )
-
-        ccpaPrivacyString = privacyString
-    }
-
-    /**
      * Notify AdMob of the COPPA subjectivity.
      *
      * @param context The current [Context].
-     * @param isSubjectToCoppa True if the user is subject to COPPA, false otherwise.
+     * @param isUserUnderage True if the user is subject to COPPA, false otherwise.
      */
-    override fun setUserSubjectToCoppa(
+    override fun setIsUserUnderage(
         context: Context,
-        isSubjectToCoppa: Boolean,
+        isUserUnderage: Boolean,
     ) {
         PartnerLogController.log(
-            if (isSubjectToCoppa) {
-                COPPA_SUBJECT
+            if (isUserUnderage) {
+                USER_IS_UNDERAGE
             } else {
-                COPPA_NOT_SUBJECT
+                USER_IS_NOT_UNDERAGE
             },
         )
 
@@ -257,7 +174,7 @@ class AdMobAdapter : PartnerAdapter {
             MobileAds.setRequestConfiguration(
                 MobileAds.getRequestConfiguration().toBuilder()
                     .setTagForChildDirectedTreatment(
-                        if (isSubjectToCoppa) {
+                        if (isUserUnderage) {
                             RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_TRUE
                         } else {
                             RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_FALSE
@@ -271,17 +188,17 @@ class AdMobAdapter : PartnerAdapter {
      * Get a bid token if network bidding is supported.
      *
      * @param context The current [Context].
-     * @param request The [PreBidRequest] instance containing relevant data for the current bid request.
+     * @param request The [PartnerAdPreBidRequest] instance containing relevant data for the current bid request.
      *
      * @return A Map of biddable token Strings.
      */
     override suspend fun fetchBidderInformation(
         context: Context,
-        request: PreBidRequest,
-    ): Map<String, String> {
+        request: PartnerAdPreBidRequest,
+    ): Result<Map<String, String>> {
         PartnerLogController.log(BIDDER_INFO_FETCH_STARTED)
         PartnerLogController.log(BIDDER_INFO_FETCH_SUCCEEDED)
-        return emptyMap()
+        return Result.success(emptyMap())
     }
 
     /**
@@ -300,36 +217,34 @@ class AdMobAdapter : PartnerAdapter {
     ): Result<PartnerAd> {
         PartnerLogController.log(LOAD_STARTED)
 
-        return when (request.format.key) {
-            AdFormat.INTERSTITIAL.key ->
+        return when (request.format) {
+            PartnerAdFormats.INTERSTITIAL ->
                 loadInterstitialAd(
                     context,
                     request,
                     partnerAdListener,
                 )
-            AdFormat.REWARDED.key ->
+            PartnerAdFormats.REWARDED ->
                 loadRewardedAd(
                     context,
                     request,
                     partnerAdListener,
                 )
-            AdFormat.BANNER.key, "adaptive_banner" ->
+            PartnerAdFormats.BANNER ->
                 loadBannerAd(
                     context,
                     request,
                     partnerAdListener,
                 )
+            PartnerAdFormats.REWARDED_INTERSTITIAL ->
+                loadRewardedInterstitialAd(
+                    context,
+                    request,
+                    partnerAdListener,
+                )
             else -> {
-                if (request.format.key == "rewarded_interstitial") {
-                    loadRewardedInterstitialAd(
-                        context,
-                        request,
-                        partnerAdListener,
-                    )
-                } else {
-                    PartnerLogController.log(LOAD_FAILED)
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_LOAD_FAILURE_UNSUPPORTED_AD_FORMAT))
-                }
+                PartnerLogController.log(LOAD_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.LoadError.UnsupportedAdFormat))
             }
         }
     }
@@ -337,29 +252,26 @@ class AdMobAdapter : PartnerAdapter {
     /**
      * Attempt to show the currently loaded AdMob ad.
      *
-     * @param context The current [Context]
+     * @param activity The current [Activity]
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     override suspend fun show(
-        context: Context,
+        activity: Activity,
         partnerAd: PartnerAd,
     ): Result<PartnerAd> {
         PartnerLogController.log(SHOW_STARTED)
         val listener = listeners.remove(partnerAd.request.identifier)
 
-        return when (partnerAd.request.format.key) {
-            AdFormat.BANNER.key, "adaptive_banner" -> showBannerAd(partnerAd)
-            AdFormat.INTERSTITIAL.key -> showInterstitialAd(context, partnerAd, listener)
-            AdFormat.REWARDED.key -> showRewardedAd(context, partnerAd, listener)
+        return when (partnerAd.request.format) {
+            PartnerAdFormats.BANNER -> showBannerAd(partnerAd)
+            PartnerAdFormats.INTERSTITIAL -> showInterstitialAd(activity, partnerAd, listener)
+            PartnerAdFormats.REWARDED -> showRewardedAd(activity, partnerAd, listener)
+            PartnerAdFormats.REWARDED_INTERSTITIAL -> showRewardedInterstitialAd(activity, partnerAd, listener)
             else -> {
-                if (partnerAd.request.format.key == "rewarded_interstitial") {
-                    showRewardedInterstitialAd(context, partnerAd, listener)
-                } else {
-                    PartnerLogController.log(SHOW_FAILED)
-                    Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_UNSUPPORTED_AD_FORMAT))
-                }
+                PartnerLogController.log(SHOW_FAILED)
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.UnsupportedAdFormat))
             }
         }
     }
@@ -376,11 +288,59 @@ class AdMobAdapter : PartnerAdapter {
         listeners.remove(partnerAd.request.identifier)
 
         // Only invalidate banners as there are no explicit methods to invalidate the other formats.
-        return when (partnerAd.request.format.key) {
-            AdFormat.BANNER.key, "adaptive_banner" -> destroyBannerAd(partnerAd)
+        return when (partnerAd.request.format) {
+            PartnerAdFormats.BANNER -> destroyBannerAd(partnerAd)
             else -> {
                 PartnerLogController.log(INVALIDATE_SUCCEEDED)
                 Result.success(partnerAd)
+            }
+        }
+    }
+
+    override fun setConsents(
+        context: Context,
+        consents: Map<ConsentKey, ConsentValue>,
+        modifiedKeys: Set<ConsentKey>,
+    ) {
+        val consent = consents[configuration.partnerId]?.takeIf { it.isNotBlank() }
+            ?: consents[ConsentKeys.GDPR_CONSENT_GIVEN]?.takeIf { it.isNotBlank() }
+        consent?.let {
+            when(it) {
+                ConsentValues.GRANTED -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_GRANTED)
+                    allowPersonalizedAds = true
+                }
+
+                ConsentValues.DENIED -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_DENIED)
+                    allowPersonalizedAds = false
+                }
+
+                else -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.GDPR_CONSENT_UNKNOWN)
+                }
+            }
+        }
+
+        consents[ConsentKeys.USP]?.let {
+            ccpaPrivacyString = it
+        }
+
+        consents[ConsentKeys.CCPA_OPT_IN]?.let {
+            when(it) {
+                ConsentValues.GRANTED -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.USP_CONSENT_GRANTED)
+                    restrictedDataProcessingEnabled = true
+                }
+
+                ConsentValues.DENIED -> {
+                    PartnerLogController.log(PartnerLogController.PartnerAdapterEvents.USP_CONSENT_DENIED)
+                    restrictedDataProcessingEnabled = false
+                }
+
+                else -> {
+                    PartnerLogController.log(CUSTOM, "Unable to set RDP since CCPA_OPT_IN is $it")
+                }
             }
         }
     }
@@ -392,20 +352,21 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return A [Result] object containing details about the initialization result.
      */
-    private fun getInitResult(status: AdapterStatus?): Result<Unit> {
-        return status?.let { it ->
+    private fun getInitResult(status: AdapterStatus?): Result<Map<String, Any>> {
+        return status?.let {
             if (it.initializationState == AdapterStatus.State.READY) {
-                Result.success(PartnerLogController.log(SETUP_SUCCEEDED))
+                PartnerLogController.log(SETUP_SUCCEEDED)
+                Result.success(emptyMap())
             } else {
                 PartnerLogController.log(
                     SETUP_FAILED,
                     "Initialization state: ${it.initializationState}. Description: ${it.description}",
                 )
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown))
             }
         } ?: run {
             PartnerLogController.log(SETUP_FAILED, "Initialization status is null.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INITIALIZATION_FAILURE_UNKNOWN))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.InitializationError.Unknown))
         }
     }
 
@@ -429,10 +390,14 @@ class AdMobAdapter : PartnerAdapter {
 
             CoroutineScope(Main).launch {
                 val adview = AdView(context)
-                val adSize = getAdMobAdSize(context, request.size, request.format.key == "adaptive_banner")
+                val adSize = getAdMobAdSize(
+                    context,
+                    request.bannerSize?.asSize(),
+                    request.bannerSize?.isAdaptive ?: false,
+                )
 
                 val details =
-                    if (request.format.key == "adaptive_banner") {
+                    if (request.bannerSize?.isAdaptive == true) {
                         mapOf(
                             "banner_width_dips" to "${adSize.width}",
                             "banner_height_dips" to "${adSize.height}",
@@ -465,7 +430,21 @@ class AdMobAdapter : PartnerAdapter {
 
                         override fun onAdLoaded() {
                             PartnerLogController.log(LOAD_SUCCEEDED)
-                            resumeOnce(Result.success(partnerAd))
+                            resumeOnce(Result.success(
+                                PartnerAd(
+                                    ad = adview,
+                                    details = details,
+                                    request = request,
+                                    partnerBannerSize = PartnerBannerSize(
+                                        Size(adSize.width, adSize.height),
+                                        if (request.bannerSize?.isAdaptive == true) {
+                                            BannerTypes.ADAPTIVE_BANNER
+                                        } else {
+                                            BannerTypes.BANNER
+                                        },
+                                    )
+                                )
+                            ))
                         }
 
                         override fun onAdFailedToLoad(adError: LoadAdError) {
@@ -715,29 +694,24 @@ class AdMobAdapter : PartnerAdapter {
             Result.success(partnerAd)
         } ?: run {
             PartnerLogController.log(SHOW_FAILED, "Banner ad is null.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.ShowError.AdNotFound))
         }
     }
 
     /**
      * Attempt to show an AdMob interstitial ad on the main thread.
      *
-     * @param context The current [Context].
+     * @param activity The current [Activity].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
-     * @param listener A [PartnerAdListener] to notify Helium of ad events.
+     * @param listener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     private suspend fun showInterstitialAd(
-        context: Context,
+        activity: Activity,
         partnerAd: PartnerAd,
         listener: PartnerAdListener?,
     ): Result<PartnerAd> {
-        if (context !is Activity) {
-            PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
-            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
-        }
-
         return suspendCancellableCoroutine { continuation ->
             fun resumeOnce(result: Result<PartnerAd>) {
                 if (continuation.isActive) {
@@ -755,14 +729,14 @@ class AdMobAdapter : PartnerAdapter {
                             partnerAd,
                             WeakReference(continuation),
                         )
-                    interstitial.show(context)
+                    interstitial.show(activity)
                 }
             } ?: run {
                 PartnerLogController.log(SHOW_FAILED, "Ad is null.")
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                            ChartboostMediationError.ShowError.AdNotFound,
                         ),
                     ),
                 )
@@ -773,22 +747,17 @@ class AdMobAdapter : PartnerAdapter {
     /**
      * Attempt to show an AdMob rewarded ad on the main thread.
      *
-     * @param context The current [Context].
+     * @param activity The current [Activity].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
      * @param listener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     private suspend fun showRewardedAd(
-        context: Context,
+        activity: Activity,
         partnerAd: PartnerAd,
         listener: PartnerAdListener?,
     ): Result<PartnerAd> {
-        if (context !is Activity) {
-            PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
-            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
-        }
-
         return suspendCancellableCoroutine { continuation ->
             fun resumeOnce(result: Result<PartnerAd>) {
                 if (continuation.isActive) {
@@ -807,7 +776,7 @@ class AdMobAdapter : PartnerAdapter {
                             WeakReference(continuation),
                         )
 
-                    rewardedAd.show(context) {
+                    rewardedAd.show(activity) {
                         PartnerLogController.log(DID_REWARD)
                         listener?.onPartnerAdRewarded(partnerAd)
                             ?: PartnerLogController.log(
@@ -821,7 +790,7 @@ class AdMobAdapter : PartnerAdapter {
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                            ChartboostMediationError.ShowError.AdNotFound,
                         ),
                     ),
                 )
@@ -832,22 +801,17 @@ class AdMobAdapter : PartnerAdapter {
     /**
      * Attempt to show an AdMob rewarded interstitial ad on the main thread.
      *
-     * @param context The current [Context].
+     * @param activity The current [Activity].
      * @param partnerAd The [PartnerAd] object containing the AdMob ad to be shown.
      * @param listener A [PartnerAdListener] to notify Chartboost Mediation of ad events.
      *
      * @return Result.success(PartnerAd) if the ad was successfully shown, Result.failure(Exception) otherwise.
      */
     private suspend fun showRewardedInterstitialAd(
-        context: Context,
+        activity: Activity,
         partnerAd: PartnerAd,
         listener: PartnerAdListener?,
     ): Result<PartnerAd> {
-        if (context !is Activity) {
-            PartnerLogController.log(SHOW_FAILED, "Context is not an Activity.")
-            return Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_SHOW_FAILURE_ACTIVITY_NOT_FOUND))
-        }
-
         return suspendCancellableCoroutine { continuation ->
             fun resumeOnce(result: Result<PartnerAd>) {
                 if (continuation.isActive) {
@@ -866,7 +830,7 @@ class AdMobAdapter : PartnerAdapter {
                             WeakReference(continuation),
                         )
 
-                    rewardedInterstitialAd.show(context) {
+                    rewardedInterstitialAd.show(activity) {
                         PartnerLogController.log(DID_REWARD)
                         listener?.onPartnerAdRewarded(partnerAd)
                             ?: PartnerLogController.log(
@@ -880,7 +844,7 @@ class AdMobAdapter : PartnerAdapter {
                 resumeOnce(
                     Result.failure(
                         ChartboostMediationAdException(
-                            ChartboostMediationError.CM_SHOW_FAILURE_AD_NOT_FOUND,
+                            ChartboostMediationError.ShowError.AdNotFound,
                         ),
                     ),
                 )
@@ -905,11 +869,11 @@ class AdMobAdapter : PartnerAdapter {
                 Result.success(partnerAd)
             } else {
                 PartnerLogController.log(INVALIDATE_FAILED, "Ad is not an AdView.")
-                Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_WRONG_RESOURCE_TYPE))
+                Result.failure(ChartboostMediationAdException(ChartboostMediationError.InvalidateError.WrongResourceType))
             }
         } ?: run {
             PartnerLogController.log(INVALIDATE_FAILED, "Ad is null.")
-            Result.failure(ChartboostMediationAdException(ChartboostMediationError.CM_INVALIDATE_FAILURE_AD_NOT_FOUND))
+            Result.failure(ChartboostMediationAdException(ChartboostMediationError.InvalidateError.AdNotFound))
         }
     }
 
@@ -925,7 +889,7 @@ class AdMobAdapter : PartnerAdapter {
         identifier: String,
         isHybridSetup: Boolean,
     ): AdRequest {
-        val extras = buildPrivacyConsents()
+        val extras = Bundle()
 
         if (isHybridSetup) {
             // Requirement by Google for their debugging purposes
@@ -935,28 +899,21 @@ class AdMobAdapter : PartnerAdapter {
 
         extras.putString("platform_name", "chartboost")
 
+        if (!allowPersonalizedAds) {
+            extras.putString("npa", "1")
+        }
+
+        if (restrictedDataProcessingEnabled) {
+            extras.putInt("rdp", 1)
+        }
+
+        ccpaPrivacyString?.takeIf { it.isNotBlank() }.let {
+            extras.putString("IABUSPrivacy_String", ccpaPrivacyString)
+        }
+
         return AdRequest.Builder()
             .addNetworkExtrasBundle(AdMobAdapter::class.java, extras)
             .build()
-    }
-
-    /**
-     * Build a [Bundle] containing privacy settings for the current ad request for AdMob.
-     *
-     * @return A [Bundle] containing privacy settings for the current ad request for AdMob.
-     */
-    private fun buildPrivacyConsents(): Bundle {
-        return Bundle().apply {
-            if (gdprApplies == true && !allowPersonalizedAds) {
-                putString("npa", "1")
-            }
-
-            ccpaPrivacyString?.let {
-                if (it.isNotEmpty()) {
-                    putString("IABUSPrivacy_String", it)
-                }
-            }
-        }
     }
 
     /**
@@ -966,8 +923,8 @@ class AdMobAdapter : PartnerAdapter {
      *
      * @return True if this waterfall is a hybrid setup, false otherwise.
      */
-    private fun getIsHybridSetup(settings: Map<String, String>): Boolean {
-        return settings[IS_HYBRID_SETUP]?.toBoolean() ?: false
+    private fun getIsHybridSetup(settings: Map<String, Any>): Boolean {
+        return (settings[IS_HYBRID_SETUP] as? String?)?.toBoolean() ?: false
     }
 }
 

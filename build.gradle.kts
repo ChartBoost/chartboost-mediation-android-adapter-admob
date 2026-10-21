@@ -25,4 +25,5 @@ task<Delete>("clean") {
 task("ci") {
     dependsOn("clean")
     dependsOn(":AdMobAdapter:assembleRemote")
+    dependsOn(":AdMobAdapter:testRemoteDebugUnitTest")
 }
